@@ -1,6 +1,6 @@
-# Group Theory Project
+# Group Theory Calculator
 
-This project provides a comprehensive implementation of various group theory concepts, including groups, permutations, and symbolic expressions. The codebase is structured to facilitate the creation, manipulation, and analysis of different types of groups.
+This project provides an implementation of various group theory concepts, including groups, permutations, and symbolic expressions. The codebase is structured to facilitate the creation, manipulation, and analysis of different types of groups.
 
 ## Project Structure
 
