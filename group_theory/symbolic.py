@@ -12,6 +12,7 @@ IDENTITY_SYMBOLS = ["e", "1"]
 
 class Term():  # a single instance of something like "r^3", r is the sym, 3 is the exp
     def __init__(self, sym, exp, group: Optional["Group"]=None, cyclic_rule: Optional[int]=None):
+        # cylcic rule is the number of times the symbol can be repeated before it wraps around
         # can specify either a Group, which is only used to extract the cyclic_rule, or pass cyclic_rule directly
         self.sym = sym
         self.exp = exp
@@ -233,13 +234,13 @@ class Expression():  # a sequence of Term objects,  like `r^2 f`
         # directly modifying .exp or .sym fields, it won't really have problems, since every "proper" operation will
         # create new Terms/Expressions as needed and won't mess up the simplify_cache
         if self.group.quotient_map:  # don't bother checking existence, since that should throw an error anyway
-            return self.group.quotient_map[simplified]#.copy() 
+            return self.group.quotient_map[simplified]#.copy()
         return simplified#.copy()
 
     def _combine_like_terms(self, n: int) -> "Expression":
         # if self is abcd * xyz then we should combine like terms starting from the 'gap' between
         # d and x, and work our way out. So check if d*x can be combined as like terms, if yes,
-        # then see if c*dx*y can be combined, and so on. We detect the 'if they can be combined' by seeing if the 
+        # then see if c*dx*y can be combined, and so on. We detect the 'if they can be combined' by seeing if the
         # result of multiplying them (which should be a Term*Term multiplication in each case) actually results in List[Term]
         # which would imply that the multiply was multiplying 2 Terms with different base symbols and so was forced
         # to concatenate them into a List[Term] object
