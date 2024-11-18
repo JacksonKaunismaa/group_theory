@@ -43,7 +43,7 @@ class PermutationGroup(Group):
 class Permutation(GroupElement):
     def __init__(self,
                  notation: Union[Tuple[int,...], List[int], List[List[int]], str],
-                 group: Union["Group", None]):
+                 group: "PermutationGroup"):
         # notation must be one of cycle notation or result notation
         # cycle notation is identified as a list[list[int]], result notation is list[int]
         self.group = group

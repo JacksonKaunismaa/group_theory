@@ -1,7 +1,7 @@
 import pytest
-from group_theory.groups import Group
 from group_theory.group_utils import get_group
 from group_theory.symbolic import SymbolicGroup
+from group_theory.permutation import Permutation
 
 @pytest.mark.parametrize("test_input,expected", [
     ("e e e e f e e e e e e e f e e e", "e"),
@@ -116,3 +116,28 @@ def test_permutation_multiplication(group_name, tests):
     for t1, t2, ans in tests:
         t1, t2, ans = gr.evaluates(t1, t2, ans)
         assert t1 * t2 == ans
+
+
+
+@pytest.mark.parametrize("group_name,tests", [
+    ('sym 5', [
+        ([1, 3, 4, 0, 2], '(1 4 2)(3 5)'),
+        ([2, 4, 0, 1, 3], '(1 3)(2 4 5)'),
+        ([4, 2, 3, 1, 0], '(1 5)(2 4 3)'),
+    ]),
+    ('sym 6', [
+        ([5, 1, 0, 2, 3, 4], '(1 3 4 5 6)'),
+        ([3, 5, 4, 2, 0, 1], '(1 5 3 4)(2 6)'),
+        ([1, 5, 4, 0, 3, 2], '(1 4 5 3 6 2)'),
+    ]),
+    ('sym 7', [
+        ([5, 6, 2, 0, 1, 3, 4], '(1 4 6)(2 5 7)'),
+        ([4, 2, 3, 5, 6, 0, 1], '(1 6 4 3 2 7 5)'),
+        ([4, 6, 3, 5, 1, 0, 2], '(1 6 4 3 7 2 5)'),
+    ])
+])
+def test_permutation_result_notation_parsing(group_name, tests):
+    gr = get_group(group_name)
+    for result_notation, cycle_notation in tests:
+        perm = Permutation(result_notation, gr).simplify()
+        assert str(perm) == cycle_notation
