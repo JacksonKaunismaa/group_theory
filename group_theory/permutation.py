@@ -28,7 +28,7 @@ class PermutationGroup(Group):
             return self.n == other.n
         return False
 
-    def _identity_expr(self):
+    def identity_expr(self):
         return Permutation([], self)
 
     def _parse(self, equation: str, initial=False) -> 'Permutation':

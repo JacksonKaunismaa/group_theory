@@ -92,7 +92,7 @@ def test_parsing(test_input, expected):
 def test_symbolic_multiplication(group_name, tests):
     gr = get_group(group_name)
     for t1, t2, ans in tests:
-        t1, t2, ans = gr.evaluate((t1, t2, ans))
+        t1, t2, ans = gr.evaluates(t1, t2, ans)
         assert t1 * t2 == ans
 
 @pytest.mark.parametrize("group_name,tests", [
@@ -114,5 +114,5 @@ def test_symbolic_multiplication(group_name, tests):
 def test_permutation_multiplication(group_name, tests):
     gr = get_group(group_name)
     for t1, t2, ans in tests:
-        t1, t2, ans = gr.evaluate((t1, t2, ans))
+        t1, t2, ans = gr.evaluates(t1, t2, ans)
         assert t1 * t2 == ans

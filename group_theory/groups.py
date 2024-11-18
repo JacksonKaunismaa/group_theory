@@ -6,11 +6,10 @@ checking subgroup properties, and performing group operations.
 """
 
 from collections.abc import Iterable
-from typing import List
+from typing import List, Union
 from tqdm import tqdm
 
-from . import utils
-from .group_element import GroupElement
+from .group_element import GroupElement, T
 
 
 class Group(set):
@@ -61,15 +60,15 @@ class Group(set):
         # check if 2 Groups are subgroups of the same group
         return type(self) is type(other)
 
-    def _identity_expr(self):
+    def identity_expr(self):
           # helper function to return an expr, pretty much only used in generate
         raise NotImplementedError
 
     def _identity_group(self):   # helper function return a Group containing only an identity {Expression, Permutation}
-        expr = self._identity_expr()
+        expr = self.identity_expr()
         return self.subgroup(expr)
 
-    def generators(self) -> List[GroupElement]:
+    def generators(self) -> List[T]:
         raise NotImplementedError
 
     def subgroup(self, *elems):  # create an empty subgroup that has the same multiplication rules
@@ -84,24 +83,28 @@ class Group(set):
                 setattr(group, var_name, obj)
         return group
 
-    def evaluate(self, equation):
+    def evaluate(self, equation: Union[GroupElement, str]) -> GroupElement:
         if isinstance(equation, str):
             return self._parse(equation).simplify()
-        elif isinstance(equation, (list,tuple)):
-            return [self.evaluate(s) for s in equation]  # => recursive
-        else: # ie. Expression, Permutation, Term
+        elif isinstance(equation, GroupElement): # ie. already GroupElement
             return equation
+        else:
+            raise ValueError(f"Unknown type '{type(equation)}' in equation")
+
+    def evaluates(self, *equations: str | GroupElement) -> List[GroupElement]:
+        return [self.evaluate(eq) for eq in equations]
 
     def copy(self):
         return self.subgroup(*self)
 
-    def __iter__(self, track=False):
+    def iterate(self, track=False):
         if not self.has_elems:
             print("Warning: you are trying to iterate over an empty group")
         iterator = super().__iter__()
-        if track:
-            return tqdm(iterator)
-        return iterator
+        return iter(tqdm(iterator, disable=not track))
+
+    def __iter__(self):
+        return self.iterate()
 
 
     # Properties
@@ -142,9 +145,8 @@ class Group(set):
 
     # Operations
 
-
     def __mul__(self, other):  # ie Group * [Expression, Group, str, list[str]] (right cosets)
-        if isinstance(other, (symbolic.Expression, permutation.Permutation)):
+        if isinstance(other, GroupElement):
             new_elems = self.subgroup()
             for elem in self:
                 new_elems.add(elem * other)
@@ -166,7 +168,7 @@ class Group(set):
 
 
     def __rmul__(self, other): # ie. Expression * Group (left cosets)
-        if isinstance(other, (symbolic.Expression, permutation.Permutation)):
+        if isinstance(other, GroupElement):
             new_elems = self.subgroup()
             for elem in self:
                 new_elems.add(other * elem)
@@ -197,7 +199,7 @@ class Group(set):
             quotient.quotient_map = quotient_map
             return quotient
 
-        elif isinstance(other, (symbolic.Expression, permutation.Permutation)):
+        elif isinstance(other, GroupElement):
             return self*other.inv()
         elif isinstance(other, list) and isinstance(other[0], str):
             elems = self.generate(*other)
@@ -232,17 +234,19 @@ class Group(set):
             start = frontier.pop()
             # print("checking elem", start)
             for elem in flat_exprs:
-                next = start*elem
-                if next not in visited:
+                next_elem = start*elem
+                if next_elem not in visited:
                     # print("found new node", next)
-                    frontier.add(next)
-                    visited.add(next)
+                    frontier.add(next_elem)
+                    visited.add(next_elem)
                     #yield next  # so that we can do infinite groups as well
         return visited
 
 
-    def centralizer(self, elems):
-        elems = self.evaluate(elems)
+    def centralizer(self, elems: Union['Group', List[str], List[GroupElement]]) -> 'Group':
+        if isinstance(elems, list):
+            elems = self.evaluates(*elems)
+
         if not isinstance(elems, Iterable):
             elems = [elems]
         commuters = self.subgroup()
@@ -263,7 +267,7 @@ class Group(set):
         reachable = []
         generators = []  # the associated list of elements that generate each coset/element in "reachable"
         elem = self.evaluate(elem)
-        for other in self.__iter__(track=track):
+        for other in self.iterate(track=track):
             new_elem = other * elem / other
             #print(other, "generates", new_elem)
             if new_elem not in reachable:
@@ -281,7 +285,7 @@ class Group(set):
             return reachable
 
 
-    def orbit(self, base_elem):
+    def orbit(self, base_elem: GroupElement):
         base_elem = self.evaluate(base_elem)
 
         reachable = self.subgroup()
@@ -343,7 +347,7 @@ class Group(set):
 
     def commutator(self, track=False):
         elems = self.subgroup()
-        for x in self.__iter__(track=track):
+        for x in self.iterate(track=track):
             for y in self:
                 elems.add(x * y / x / y)
         return self.generate(elems)

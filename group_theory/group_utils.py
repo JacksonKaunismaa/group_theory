@@ -1,8 +1,12 @@
 import re
 import math
+from typing import TYPE_CHECKING
 
 from . import permutation
 from . import symbolic
+
+if TYPE_CHECKING:
+    from .groups import Group
 
 def _default_groups(group_name, n, generate):
     # some definitions for common finite groups
@@ -48,7 +52,7 @@ def _default_groups(group_name, n, generate):
                                       name=f"{group_name} {n}")
 
 
-def get_group(query: str, generate=None):
+def get_group(query: str, generate=None) -> "Group":
     """
     Get a group object from a query string.
     Examples:
@@ -71,15 +75,14 @@ def get_group(query: str, generate=None):
                 (["perm", "permutation", "sym", "symmetric", "s"], "symmetric"),
                 (["alt", "alternating", "a"], "alternating")]
     if not extracted:
-        print("Group name not recognized")
-        return
+        raise ValueError("Group name not recognized")
     group_name = extracted.group(1).strip()
     for (alt_names, name) in mappings:
         if group_name in alt_names:
             group_name = name
             break
     else:
-        print(f"Group name {group_name} not recognized")
-        return
+        raise ValueError(f"Group name {group_name} not recognized")
+
     size = int(extracted.group(2))
     return _default_groups(group_name, size, generate)

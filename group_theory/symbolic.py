@@ -56,7 +56,7 @@ class SymbolicGroup(Group):
         # clients only use is_identity, and is_identity needs to be implemented everywhere
         return Term(None, None)
 
-    def _identity_expr(self):
+    def identity_expr(self):
         return Expression([self._identity_term()], self)
 
     def _parse(self, equation: str, initial: bool = False) -> 'Expression':
@@ -67,7 +67,7 @@ class SymbolicGroup(Group):
 
 
 class Term(GroupElement):  # a single instance of something like "r^3", r is the sym, 3 is the exp
-    def __init__(self, sym: str, exp: int, group: Optional["Group"]=None, cyclic_rule: Optional[int]=None):
+    def __init__(self, sym: str | None, exp: int, group: Optional["Group"]=None, cyclic_rule: Optional[int]=None):
         # cylcic rule is the number of times the symbol can be repeated before it wraps around
         # can specify either a Group, which is only used to extract the cyclic_rule, or pass cyclic_rule directly
         self.sym = sym
@@ -119,7 +119,7 @@ class Term(GroupElement):  # a single instance of something like "r^3", r is the
     #     return Term(self.sym, self.exp, cyclic_rule=self.cyclic_rule)
 
     # frontend of multiplication
-    def __mul__(self, other: Union["Expression", "Term"]) -> Union["Expression", "Term"]:
+    def __mul__(self, other: GroupElement) -> Union["Expression", "Term", List["Term"]]:
         if isinstance(other, (Expression, Term)):
             return self._mul(other)
         else:
@@ -127,7 +127,7 @@ class Term(GroupElement):  # a single instance of something like "r^3", r is the
 
     def __repr__(self):
         if self.exp == 1:
-            return self.sym
+            return str(self.sym)
         if self.is_identity:
             return "e"
         return f"{self.sym}{self.exp}"
@@ -174,7 +174,7 @@ class Term(GroupElement):  # a single instance of something like "r^3", r is the
 
 
 class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
-    def __init__(self, expr: Union[List[Term], str], group: Optional["Group"], initial=False):
+    def __init__(self, expr: Union[List[Term], str], group: "SymbolicGroup", initial=False):
         self.group = group
         if isinstance(expr, str):  # parse it if its a string
             expr = self._parse(expr, initial=initial)
@@ -182,16 +182,12 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
         if not self.expr:
             self.expr = [group._identity_term()]  # allowing empty expresions makes things buggy
 
-    @staticmethod
-    def identity():
-        return Expression([Term.identity()], None)
-
     def _parse(self, equation: str, initial: bool) -> List[Term]:
         terms = equation.strip().split()
-        start = self.group._identity_expr()
+        start = self.group.identity_expr()
         for t in terms:
             if t[0] in IDENTITY_SYMBOLS:
-                next_term = self.group._identity_expr()  # initial=True when parsing the group rules themselves, since we don't know
+                next_term = self.group.identity_expr()  # initial=True when parsing the group rules themselves, since we don't know
             elif t[0] not in self.group.symbols and not initial:  # 'symbols' at that point, so we can't check against it
                 raise ValueError(f"Unknown symbol '{t[0]}' while parsing expression of a '{self.group.name}' group."
                                  f"Possible symbols are '{self.group.symbols}'")
@@ -236,7 +232,7 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
             for window_size in sorted(self.group.general_rules.keys(), reverse=True):  # check all possible window-sizes we have rules for
                 if len(simplified) < window_size:
                     continue
-                new_expr = self.group._identity_expr()
+                new_expr = self.group.identity_expr()
 
                 window_iter = utils.sliding_window(simplified.expr, window_size)  # current window we are looking to apply rules in
                 last_posn = 0  # track where we've appended up to, so we can append missing ones at the end
@@ -404,7 +400,7 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
             return NotImplemented
 
     def __pow__(self, other):
-        curr_expr = self.group._identity_expr()
+        curr_expr = self.group.identity_expr()
         for _ in range(other):
             curr_expr *= self
         return curr_expr
