@@ -1,5 +1,5 @@
 import itertools
-from typing import Tuple, Union, List
+from typing import Sequence, Tuple, Union, List
 
 from .group_element import GroupElement
 from .groups import Group
@@ -42,51 +42,46 @@ class PermutationGroup(Group):
 
 class Permutation(GroupElement):
     def __init__(self,
-                 notation: Union[Tuple[int,...], List[int], List[List[int]], str],
+                 notation: Union[Sequence[int], List[List[int]], str],
                  group: "PermutationGroup"):
         # notation must be one of cycle notation or result notation
         # cycle notation is identified as a list[list[int]], result notation is list[int]
         self.group = group
-        if isinstance(notation, str):  # if its a string, parse it into cycle notation first
-            notation = self._parse(notation)
 
-        notation_type = "cycle"
-        if notation and isinstance(notation[0], int):
-            notation_type = "result"
-
-        if notation_type == "cycle":
-            # if not group.n:
-            #     self.n = 1+max(max(notation, key=max))  # technically a lower bound on n
-            self.cycle = notation
+        if isinstance(notation, str):
+            self.cycle = self._parse(notation)
+        elif notation and isinstance(notation[0], int):
+            self.parse_result_notation(notation) # type: ignore
+        elif notation and isinstance(notation[0], list):
+            self.cycle: List[List[int]] = notation
         else:
-            # self.n = max(notation)+1
-            shifted_notation = notation
-            remain = set(range(self.group.n))
-            curr_term = []
-            self.cycle = []
-            start_new = True  # [2, 5, 3, 1, 4]
-            while remain: #[1,4,2,0,3])
-                #print(f"{remain=}")
-                if start_new:
-                    start_new = False
-                    elem = min(remain)
-                    curr_term.append(elem)
-                    remain.remove(elem)
-                #print(elem, "goes to", end=" ")
-                elem = shifted_notation.index(elem)
-                #print(elem)
-                if elem == curr_term[0]:
-                    #print(f"cycle finished {curr_term=}")
-                    self.cycle.append(curr_term.copy())
-                    curr_term = []
-                    start_new = True
-                else:
-                    curr_term.append(elem)
-                    remain.remove(elem)
-            self.cycle.append(curr_term.copy())
-            #print(self.cycle)
+            raise ValueError(f"Invalid notation {notation}")
 
-        #self.simplify()
+    def parse_result_notation(self, notation: Sequence[int]):
+        shifted_notation = notation
+        remain = set(range(self.group.n))
+        curr_term = []
+        self.cycle = []
+        elem = self.start_new_term(remain, curr_term)  # [2, 5, 3, 1, 4]
+        while remain: #[1,4,2,0,3])
+                #print(elem, "goes to", end=" ")
+            elem = shifted_notation.index(elem)
+                #print(elem)
+            if elem == curr_term[0]:
+                    #print(f"cycle finished {curr_term=}")
+                self.cycle.append(curr_term.copy())
+                curr_term = []
+                elem = self.start_new_term(remain, curr_term)
+            else:
+                curr_term.append(elem)
+                remain.remove(elem)
+        self.cycle.append(curr_term.copy())
+
+    def start_new_term(self, remain: set[int], curr_term: list[int]) -> int:
+        elem = min(remain)
+        curr_term.append(elem)
+        remain.remove(elem)
+        return elem
 
     def _parse(self, equation: str, initial=False) -> List[List[int]]:
         cycles = equation.split("(")
@@ -131,15 +126,8 @@ class Permutation(GroupElement):
         remain = set(range(self.group.n))
         new_cycle = []
         curr_term = []
-        start_new = True
+        elem = self.start_new_term(remain, curr_term)
         while remain: # (0 2 3)(1 2)(3)(3 2)
-            if start_new:
-                #print("starting new term, remain is", remain)
-                #print("cycle so far is", new_cycle)
-                start_new = False
-                elem = min(remain)
-                remain.remove(elem)
-                curr_term.append(elem)
             for term in self.cycle:
                 #print("Term iis ", term)
                 term_size = len(term)
@@ -152,9 +140,9 @@ class Permutation(GroupElement):
                     continue
             if elem == curr_term[0]:
                 #print(f"finished cycle {curr_term=}")
-                start_new = True
                 new_cycle.append(curr_term.copy())
                 curr_term = []
+                elem = self.start_new_term(remain, curr_term)
             else:
                 curr_term.append(elem)
                 remain.remove(elem)
@@ -173,10 +161,8 @@ class Permutation(GroupElement):
     def inv(self):
         return Permutation(list(reversed([list(reversed(x)) for x in self.cycle])), self.group).simplify()
 
-    def __mul__(self, other):  # for Permutation * Permutation
+    def __mul__(self, other: "Permutation"):  # for Permutation * Permutation
         if isinstance(other, Permutation):
-            #print(other, "hey", type(other), other, self, isinstance(other, Permutation))
-            # inferred_n = max(self.n, other.n)
             cycle = self.cycle + other.cycle
             return Permutation(cycle, self.group).simplify()
         else:
@@ -194,7 +180,7 @@ class Permutation(GroupElement):
     def __eq__(self, other):
         return str(self) == str(other)
 
-    def simpler_heuristic(self, other: 'Permutation') -> bool:
+    def simpler_heuristic(self, other: "Permutation") -> bool:
         identity_check =  super().simpler_heuristic(other)
         if identity_check is not None:
             return identity_check
@@ -204,9 +190,11 @@ class Permutation(GroupElement):
             return True
         elif sum_cycle1 == sum_cycle2: # shorter terms are preferred
             total = sum(i*(c1-c2) for i, (c1, c2) in enumerate(zip(self.cycle_type, other.cycle_type)))
-            if total < 0:  # total < 0 => c2 has its cycles "later" ie. have more elems in the cycle
+            # total < 0 => c2's cycles are "later" ie. has terms with many elems
+            if total < 0:
                 return True
-        if str(self) < str(other):  # prefer terms that are alphabetically in order
+        # prefer terms that are closer to ascending in order
+        if str(self) < str(other):
             return True  # ie. (1 2 3 4) should be preferred over (1 3 2 4)
 
         return False

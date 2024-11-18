@@ -17,7 +17,7 @@ class GroupElement(ABC, Generic[T]):
         ...
 
     @abstractmethod
-    def __mul__(self, other: "GroupElement") -> "GroupElement":
+    def __mul__(self, other: T) -> "GroupElement":
         ...
 
     @abstractmethod
