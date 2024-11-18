@@ -1,20 +1,21 @@
-from group_theory import groups, permutation, utils
+from group_theory import groups, permutation, symbolic, utils
+import random
 
 # Test code generators
 
 
-def rand_expr(group: groups.Group):
-    import random
-
-    if group.is_perm_group:
+def rand_expr(group: groups.Group) -> groups.GroupElement:
+    if isinstance(group, permutation.PermutationGroup):
         res = list(range(group.n))
         random.shuffle(res)
         return permutation.Permutation(res, group)
-    else:
+    elif isinstance(group, symbolic.SymbolicGroup):
         expr_str = ""
         for sym in group.symbols:
             expr_str += f"{sym}{random.randint(0,100)} "
         return group.evaluate(expr_str)
+    else:
+        raise ValueError("Invalid group type")
 
 
 def rand_problem(group: groups.Group):

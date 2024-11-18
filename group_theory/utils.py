@@ -19,9 +19,8 @@ def sliding_window(iterable, n):  # standard itertools recipe
         yield tuple(window)
 
 
-def factorize(
-    n,
-):  # from https://codereview.stackexchange.com/questions/121862/fast-number-factorization-in-python
+def factorize(n):
+    # from https://codereview.stackexchange.com/questions/121862/fast-number-factorization-in-python
     # some common primes, should mean we can handle reasonable cases very slightly faster
     primes = [
         2,

@@ -67,12 +67,8 @@ class SymbolicGroup(Group):
             )
         return False
 
-    def _identity_term(self):
-        # clients only use is_identity, and is_identity needs to be implemented everywhere
-        return Term(None, None)
-
     def identity_expr(self):
-        return Expression([self._identity_term()], self)
+        return Expression([Term.identity()], self)
 
     def _parse(self, equation: str, initial: bool = False) -> "Expression":
         return Expression(equation, self, initial=initial)
@@ -113,6 +109,10 @@ class Term(
 
     def _parse(self, equation: str, initial: bool):
         pass
+
+    @staticmethod
+    def identity():
+        return Term(None, 0)
 
     @property
     def is_identity(self):
@@ -201,7 +201,79 @@ class Term(
         return self.exp < other.exp
 
 
-class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
+class Expression(GroupElement):
+    """
+    Represents an element of a symbolic group, as a sequence of terms.
+
+    Attributes:
+        group (SymbolicGroup): The group to which the expression belongs.
+        expr (List[Term]): The list of terms in the expression.
+
+    Methods:
+        __init__(expr, group, initial=False):
+            Initializes an Expression object.
+
+        _parse(equation, initial):
+            Parses a string equation into a list of Term objects.
+
+        windows_match(window, pattern):
+            Checks if a window of terms matches a given pattern.
+
+        tprint(*args, **kwargs):
+            Prints messages if the group's verbose attribute is True.
+
+        simplify(max_iters=200):
+            Simplifies the expression by applying group rules.
+
+        _combine_like_terms(n):
+            Combines like terms in the expression starting from a given position.
+
+        _filter_identity(expr=None):
+            Removes identity terms from the expression or a list of terms.
+
+        is_identity:
+            Checks if the expression is an identity expression.
+
+        __getitem__(idx):
+            Gets the term at the specified index.
+
+        __len__():
+            Returns the number of terms in the expression.
+
+        _concat(left, right):
+            Concatenates two expressions or lists of terms without combining like terms.
+
+        _mul(other):
+            Multiplies the expression with another expression, term, or list of terms.
+
+        __mul__(other):
+            Multiplies the expression with another expression or term and simplifies the result.
+
+        inv():
+            Returns the inverse of the expression.
+
+        _truediv(other):
+            Divides the expression by another expression or term without simplifying.
+
+        __truediv__(other):
+            Divides the expression by another expression or term and simplifies the result.
+
+        __pow__(other):
+            Raises the expression to the power of an integer.
+
+        __eq__(other):
+            Checks if two expressions are equal.
+
+        __repr__():
+            Returns a string representation of the expression.
+
+        __hash__():
+            Returns the hash of the expression.
+
+        simpler_heuristic(other):
+            Determines if the current expression is simpler than another expression based on heuristic rules.
+    """
+
     def __init__(
         self, expr: Union[List[Term], str], group: "SymbolicGroup", initial=False
     ):
@@ -211,20 +283,18 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
         self.expr = expr
         if not self.expr:
             self.expr = [
-                group._identity_term()
+                Term.identity()
             ]  # allowing empty expresions makes things buggy
 
     def _parse(self, equation: str, initial: bool) -> List[Term]:
+        # initial=True when parsing the group rules themselves, since we don't know
+        # 'symbols' at that point, so we can't check against it
         terms = equation.strip().split()
         start = self.group.identity_expr()
         for t in terms:
             if t[0] in IDENTITY_SYMBOLS:
-                next_term = (
-                    self.group.identity_expr()
-                )  # initial=True when parsing the group rules themselves, since we don't know
-            elif (
-                t[0] not in self.group.symbols and not initial
-            ):  # 'symbols' at that point, so we can't check against it
+                next_term = self.group.identity_expr()
+            elif t[0] not in self.group.symbols and not initial:
                 raise ValueError(
                     f"Unknown symbol '{t[0]}' while parsing expression of a '{self.group.name}' group."
                     f"Possible symbols are '{self.group.symbols}'"
@@ -369,14 +439,30 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
             return self.group.quotient_map[simplified]  # .copy()
         return simplified  # .copy()
 
-    def _combine_like_terms(self, n: int) -> "Expression":
+    def combine_like_terms(self, n: int) -> "Expression":
+        """
+        Combine like terms in the expression starting from the specified index.
+
+        This method attempts to combine like terms in the expression starting from the 'gap'
+        between the terms at index `n-1` and `n`, and works its way outwards. The combination
+        process involves checking if adjacent terms can be combined into a single term. If
+        they can be combined, the method continues to the next pair of terms. If not, it stops
+        and concatenates the combined terms with the remaining terms of the expression.
+
+        Args:
+            n (int): The index from which to start combining like terms.
+
+        Returns:
+            Expression: A new expression with like terms combined, or the modified expression
+            if it was updated in place.
+        """
         # if self is abcd * xyz then we should combine like terms starting from the 'gap' between
         # d and x, and work our way out. So check if d*x can be combined as like terms, if yes,
         # then see if c*dx*y can be combined, and so on. We detect the 'if they can be combined' by seeing if the
         # result of multiplying them (which should be a Term*Term multiplication in each case) actually results in List[Term]
         # which would imply that the multiply was multiplying 2 Terms with different base symbols and so was forced
         # to concatenate them into a List[Term] object
-        curr_term = self.group._identity_term()
+        curr_term = Term.identity()
         for i, (term1, term2) in enumerate(zip(self.expr[n - 1 :: -1], self.expr[n:])):
             # print("looking at", term1, curr_term, term2)
             curr_term = term1._mul(curr_term)  #  * term2
@@ -387,7 +473,7 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
                 break
         else:  # at this point curr_term will be a Term, since we didn't break out
             curr_term = [curr_term]
-        curr_term = self._filter_identity(curr_term)
+        curr_term = self.filter_identity(curr_term)
         new_expr = curr_term._concat(
             self.expr[: n - i - 1], self.expr[n + i + 1 :]
         )  # self.expr[:n-i-1] * curr_term *  self.expr[n+i+1:]
@@ -397,7 +483,7 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
         self.expr = new_expr  # can modify in-place here since only used via __mul__, which creates a new Expression anyway
         return self
 
-    def _filter_identity(
+    def filter_identity(
         self, expr=None
     ) -> "Expression":  # remove all identity terms from an Expression or a list
         if expr is None:  # need the expr parameter since sometimes it handles lists
@@ -433,14 +519,19 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
             right = Expression(right, self.group)
         return Expression(
             left.expr + self.expr + right.expr, self.group
-        )._filter_identity()
+        ).filter_identity()
 
     # def copy(self):  # need deepcopy since its a list
     #     # return Expression(copy.deepcopy(self.expr), self.group)
     #     return Expression(self.expr.copy(), self.group)
 
-    # for doing multiply in a simplify operatino so that we don't infinitely recurse (backend mul)
     def _mul(self, other) -> "Expression":  # for Expression * {Expression, Term}
+        """Combine expressions without calling .simplify().
+
+        This is used to avoid infinite recursion when multiplying expressions.
+        Still combines like terms between the end of self and the start of other,
+        but doesn't simplify the result.
+        """
         if isinstance(other, Expression):
             other_expr = other.expr
         elif isinstance(other, list):
@@ -452,7 +543,7 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
                 f"Don't know how to multiply Expression * {type(other)}"
             )
         new_expr = Expression(self.expr + other_expr, self.group)
-        return new_expr._combine_like_terms(len(self))
+        return new_expr.combine_like_terms(len(self))
 
     # frontend of multiplication, so that simplification is done automatically
     def __mul__(self, other):  # Expression * {Expression, Term}
