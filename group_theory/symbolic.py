@@ -1,17 +1,73 @@
-from typing import Union, List, TYPE_CHECKING, Optional
+from collections import defaultdict
+from typing import Union, List, Optional
 from itertools import chain
 # import copy
 
 from . import utils
-if TYPE_CHECKING:
-    from .groups import Group
+from .group_element import GroupElement
+from .groups import Group
 
 
 IDENTITY_SYMBOLS = ["e", "1"]
 
+class SymbolicGroup(Group):
+    def __init__(self, *elems: 'Expression', rules: List[str], name: str='', generate: bool = False,
+                 verbose: bool = False):
+        super().__init__(*elems, name=name, verbose=verbose)
+        self.singleton_rules = {}
+        self.general_rules = defaultdict(list)
+        self.symbols = set()
+        self.simplify_cache = {}
 
-class Term():  # a single instance of something like "r^3", r is the sym, 3 is the exp
-    def __init__(self, sym, exp, group: Optional["Group"]=None, cyclic_rule: Optional[int]=None):
+        # parse rules
+        for rule in rules:
+            pattern, result = rule.split("=")
+            pattern_expr = self._parse(pattern, initial=True)
+            result_expr = self._parse(result, initial=True)
+
+            self._add_syms(pattern_expr, result_expr)  # so that we can generate the group later
+
+            if len(pattern_expr) == 1 and  result_expr.is_identity:  # if symbol is cyclic, do this for efficiency
+                self.singleton_rules[pattern_expr[0].sym] = pattern_expr[0].exp
+                continue
+            self.general_rules[len(pattern_expr)].append((pattern_expr, result_expr))    # map symbol -> (exponent, replacement)
+
+        if generate:
+            self._generate_all()
+
+    def _add_syms(self, *exprs: 'Expression'):
+        for expr in exprs:
+            for term in expr:
+                if not term.is_identity:
+                    self.symbols.add(term.sym)
+
+    def _generate_all(self):
+        elems = self.generate(*self.symbols)
+        self |= elems
+
+    def _same_group_type(self, other: Group):
+        types_match = super()._same_group_type(other)
+        if types_match:
+            return (self.general_rules == other.general_rules and
+                    self.singleton_rules == other.singleton_rules)
+        return False
+
+    def _identity_term(self):
+        # clients only use is_identity, and is_identity needs to be implemented everywhere
+        return Term(None, None)
+
+    def _identity_expr(self):
+        return Expression([self._identity_term()], self)
+
+    def _parse(self, equation: str, initial: bool = False) -> 'Expression':
+        return Expression(equation, self, initial=initial)
+
+    def generators(self):
+        return list(self.symbols)
+
+
+class Term(GroupElement):  # a single instance of something like "r^3", r is the sym, 3 is the exp
+    def __init__(self, sym: str, exp: int, group: Optional["Group"]=None, cyclic_rule: Optional[int]=None):
         # cylcic rule is the number of times the symbol can be repeated before it wraps around
         # can specify either a Group, which is only used to extract the cyclic_rule, or pass cyclic_rule directly
         self.sym = sym
@@ -29,6 +85,9 @@ class Term():  # a single instance of something like "r^3", r is the sym, 3 is t
         if self.exp == 0:
             self.sym = None  # make self identity, not great since now we have 2 implementations of identity() (other is in Group)
         return self
+
+    def _parse(self, equation: str, initial: bool):
+        pass
 
     @property
     def is_identity(self):
@@ -106,16 +165,26 @@ class Term():  # a single instance of something like "r^3", r is the sym, 3 is t
         else:
             return NotImplemented
 
+    def simpler_heuristic(self, other: 'Term') -> bool:
+        identity_check = super().simpler_heuristic(other)
+        if identity_check is not None:
+            return identity_check
+        return self.exp < other.exp
 
 
-class Expression():  # a sequence of Term objects,  like `r^2 f`
-    def __init__(self, expr: Union[List[Term], str], group: "Group", initial=False):
+
+class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
+    def __init__(self, expr: Union[List[Term], str], group: Optional["Group"], initial=False):
         self.group = group
         if isinstance(expr, str):  # parse it if its a string
             expr = self._parse(expr, initial=initial)
         self.expr = expr
         if not self.expr:
             self.expr = [group._identity_term()]  # allowing empty expresions makes things buggy
+
+    @staticmethod
+    def identity():
+        return Expression([Term.identity()], None)
 
     def _parse(self, equation: str, initial: bool) -> List[Term]:
         terms = equation.strip().split()
@@ -352,3 +421,14 @@ class Expression():  # a sequence of Term objects,  like `r^2 f`
 
     def __hash__(self):
         return hash(str(self))
+
+    def simpler_heuristic(self, other: 'Expression') -> bool:
+        identity_check = super().simpler_heuristic(other)
+        if identity_check is not None:
+            return identity_check
+
+        if len(self) < len(other):  # shorter Expressions are better
+            return True
+        if sum(x.exp for x in self) < sum(x.exp for x in other): # smaller exponents are better
+            return True
+        return False

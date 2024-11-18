@@ -1,13 +1,11 @@
 from collections import deque
 import itertools
 import re
+from typing import TYPE_CHECKING
 from tqdm import tqdm
-import math
 
-from . import permutation
-from . import groups
-from . import symbolic
-
+if TYPE_CHECKING:
+    from . import groups
 
 def sliding_window(iterable, n):  # standard itertools recipe
     it = iter(iterable)
@@ -17,32 +15,6 @@ def sliding_window(iterable, n):  # standard itertools recipe
     for x in it:
         window.append(x)
         yield tuple(window)
-
-
-# returns True if term1 is heuristically "simpler" than term2
-def simpler_heuristic(term1, term2):
-    if term1.is_identity or term2.is_identity:  # identity is simplest, do this to avoid NoneType issues
-        return term1.is_identity
-
-    if isinstance(term1, symbolic.Expression):
-        if len(term1) < len(term2):  # shorter Expressions are better
-            return True
-        if sum(x.exp for x in term1) < sum(x.exp for x in term2): # smaller exponents are better
-            return True
-    elif isinstance(term1, symbolic.Term):
-        if term1.exp < term2.exp: # smaller exponents are better
-            return True
-    elif isinstance(term1, permutation.Permutation):
-        sum_cycle1, sum_cycle2 = sum(term1.cycle_type), sum(term2.cycle_type)
-        if sum_cycle1 < sum_cycle2:  # fewer terms are preferred
-            return True
-        elif sum_cycle1 == sum_cycle2: # shorter terms are preferred
-            total = sum(i*(c1-c2) for i, (c1, c2) in enumerate(zip(term1.cycle_type, term2.cycle_type)))
-            if total < 0:  # total < 0 => c2 has its cycles "later" ie. have more elems in the cycle
-                return True
-        if str(term1) < str(term2):  # prefer terms that are alphabetically in order
-            return True  # ie. (1 2 3 4) should be preferred over (1 3 2 4)
-    return False
 
 
 def factorize(n):  # from https://codereview.stackexchange.com/questions/121862/fast-number-factorization-in-python
@@ -73,12 +45,8 @@ def get_interesting_sizes(n):
     return range(n)  # this is the actual safest
 
 
-def find_subgroups(group):  # only works for finite groups
-    if isinstance(group, groups.Group):
-        generators = group.singleton_rules  # generators should be a dict of symbol: orbit_of_symbol
-    else:
-        generators = {permutation.Permutation([[a, b]], n=group.n): 2  # generate group via adjacent transpositions
-                                    for a,b in zip(range(0,group.n-1), range(1,group.n))}
+def find_subgroups(group: 'groups.Group'):  # only works for finite groups
+    generators = group.generators()
     generators = list(generators.items())  # so that order is fixed
     subgroups = {}
     # iterate over all possible exponents for all possible generators
@@ -100,60 +68,3 @@ def find_subgroups(group):  # only works for finite groups
             if new_subgroup and new_subgroup not in subgroups.values():  # only add unique subgroups
                 subgroups[subgroup_generators] = new_subgroup
     return subgroups
-
-def _default_groups(group_name, n, generate): # some definitions for common finite groups
-    if group_name == "quaternion":
-        group_name = "dicyclic"
-        # n //= 2  # use the group explorer and video notation (different from notation in the slides)
-    # symbolic groups definition
-    rules_d =  dict(cyclic=[f"r{n} = e"],
-                    dihedral=[f"r{n} = e",
-                              f"f2 = e",
-                              f"f r = r{n-1} f"],
-                    dicyclic=[f"r{n} = e",
-                              f"s4 = e",
-                              f"s2 = r{n//2}",
-                              f"s r = r{n-1} s"],
-                    semi_dihedral=[f"r{n} = e",
-                                   f"s2 = e",
-                                   f"s r = r{n//2-1} s"],
-                    semi_abelian=[f"r{n} = e",
-                                  f"s2 = e",
-                                  f"s r = r{n//2+1} s"],
-                    abelian=[f"r{n} = e",
-                             f"s2 = e",
-                             f"s r = r s"],
-                    )
-
-    if group_name in ["symmetric", "alternating"]:  # use different settings for permutation groups since they are quite large
-        return groups.Group(n=n, generate=generate, name=f"{group_name} {n}")  # and also have no symbolic rules
-    else:
-        if group_name in ["dicyclic"] and n % 2 != 0:
-            raise ValueError(f"n must be divisible by 2 for {group_name} group, it was {n} instead")
-        if group_name in ["semi_dihedral", "semi_abelian"] and math.log2(n) != int(math.log2(n)):
-            raise ValueError(f"n must be a power of 2 for {group_name} group, it was {n} instead")
-        return groups.Group(rules=rules_d[group_name], generate=generate, name=f"{group_name} {n}")
-
-
-def get_group(query, generate=None):  # would use this in a "interactive" session, but probably useless
-    extracted = re.search(r"([a-zA-Z]+) ?(\d+)", query.lower().strip())
-    mappings = [(["d", "dihedral", "dih", "di"], "dihedral"),
-                (["c", "z", "cyclic", "cyc"], "cyclic"),
-                (["dic", "dicyclic"], "dicyclic"),
-                (["semi-dihedral", "sd", "semi_dihedral"], "semi_dihedral"),
-                (["semi-abelian", "sa", "semi_abelian"], "semi_abelian"),
-                (["abelian", "ab"], "abelian"),
-                (["quaternion", "quat", "q"], "quaternion"),
-                (["perm", "permutation", "sym", "symmetric", "s"], "symmetric"),
-                (["alt", "alternating", "a"], "alternating")]
-    group_name = extracted.group(1).strip()
-    for (alt_names, name) in mappings:
-        if group_name in alt_names:
-            group_name = name
-            break
-    else:
-        print(f"Group name {group_name} not recognized")
-        return
-    size = int(extracted.group(2))
-    return _default_groups(group_name, size, generate)
-

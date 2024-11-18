@@ -1,12 +1,49 @@
-from typing import Union, List, TYPE_CHECKING
+import itertools
+from typing import Tuple, Union, List
 
-if TYPE_CHECKING:
-    from .groups import Group
+from .group_element import GroupElement
+from .groups import Group
 
 # a Permutation should essentially be equivalent to an Expression (though in some sense it also only ever has a single Term)
+class PermutationGroup(Group):
+    def __init__(self, *elems: 'Permutation', n: int, name: str, generate: bool = False,
+                 verbose: bool = False):
+        super().__init__(*elems, name=name, verbose=verbose)
+        self.n = n
+        if generate:
+            self._generate_all()
 
-class Permutation():
-    def __init__(self, notation: Union[List[int], List[List[int]], str], group: "Group"):
+    def _generate_all(self):
+        new_elems = [Permutation(pt, self).simplify()
+                    for pt in itertools.permutations(list(range(self.n)))]
+
+        if "symmetric" not in self.name:
+            new_elems = [x for x in new_elems if x.parity == 0]
+
+        self.update(new_elems)
+
+    def _same_group_type(self, other: Group):
+        types_match = super()._same_group_type(other)
+        if types_match:
+            return self.n == other.n
+        return False
+
+    def _identity_expr(self):
+        return Permutation([], self)
+
+    def _parse(self, equation: str, initial=False) -> 'Permutation':
+        return Permutation(equation, self)
+
+    def generators(self):
+        # list of adjacent transpositions
+        return [Permutation([[a, a+1]], self) for a in range(0,self.n-1)]
+
+
+
+class Permutation(GroupElement):
+    def __init__(self,
+                 notation: Union[Tuple[int,...], List[int], List[List[int]], str],
+                 group: Union["Group", None]):
         # notation must be one of cycle notation or result notation
         # cycle notation is identified as a list[list[int]], result notation is list[int]
         self.group = group
@@ -51,7 +88,7 @@ class Permutation():
 
         #self.simplify()
 
-    def _parse(self, equation: str) -> List[List[int]]:
+    def _parse(self, equation: str, initial=False) -> List[List[int]]:
         cycles = equation.split("(")
         cycles = [x.strip("() ") for x in cycles if x]
         cycles = [[int(c)-1 for c in x.split(" ") if c] for x in cycles]
@@ -68,10 +105,10 @@ class Permutation():
         for i in range(self.group.n):  # the 1's count will likely be wrong
             num_cycles.append(cycle_lens.count(i+1))
         return num_cycles
-    
+
     @property
     def parity(self):
-        return sum(i*amt for i,amt in enumerate(self.cycle_type)) % 2 
+        return sum(i*amt for i,amt in enumerate(self.cycle_type)) % 2
 
     def __repr__(self):
         if not self.cycle:
@@ -127,7 +164,7 @@ class Permutation():
         if self.group.quotient_map:
             return self.group.quotient_map[filtered]  # don't bother checking existence, since that should throw an error anyway
         return filtered
-    
+
     def _filter_identity(self, cycle=None):
         if cycle is None:
             cycle = self.cycle
@@ -143,9 +180,9 @@ class Permutation():
             cycle = self.cycle + other.cycle
             return Permutation(cycle, self.group).simplify()
         else:
-            return NotImplemented            
+            return NotImplemented
 
-    def __hash__(self): 
+    def __hash__(self):
         return hash(str(self))
 
     def __truediv__(self, other):
@@ -156,3 +193,20 @@ class Permutation():
 
     def __eq__(self, other):
         return str(self) == str(other)
+
+    def simpler_heuristic(self, other: 'Permutation') -> bool:
+        identity_check =  super().simpler_heuristic(other)
+        if identity_check is not None:
+            return identity_check
+
+        sum_cycle1, sum_cycle2 = sum(self.cycle_type), sum(other.cycle_type)
+        if sum_cycle1 < sum_cycle2:  # fewer terms are preferred
+            return True
+        elif sum_cycle1 == sum_cycle2: # shorter terms are preferred
+            total = sum(i*(c1-c2) for i, (c1, c2) in enumerate(zip(self.cycle_type, other.cycle_type)))
+            if total < 0:  # total < 0 => c2 has its cycles "later" ie. have more elems in the cycle
+                return True
+        if str(self) < str(other):  # prefer terms that are alphabetically in order
+            return True  # ie. (1 2 3 4) should be preferred over (1 3 2 4)
+
+        return False

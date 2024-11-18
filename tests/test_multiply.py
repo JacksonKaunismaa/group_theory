@@ -1,6 +1,7 @@
 import pytest
 from group_theory.groups import Group
-from group_theory.utils import get_group
+from group_theory.group_utils import get_group
+from group_theory.symbolic import SymbolicGroup
 
 @pytest.mark.parametrize("test_input,expected", [
     ("e e e e f e e e e e e e f e e e", "e"),
@@ -15,10 +16,10 @@ from group_theory.utils import get_group
     ("r r r2 f r3 f f r5 r4 r", "r7 f")
 ])
 def test_parsing(test_input, expected):
-    d8_alt = Group(rules=["r8 = e",
-                          "f2 = e",
-                          "r f r = f",
-                          "f r = r7 f"])
+    d8_alt = SymbolicGroup(rules=["r8 = e",
+                                  "f2 = e",
+                                  "r f r = f",
+                                  "f r = r7 f"])
     d8 = get_group("d8")
 
     parsed_alt = d8_alt._parse(test_input)
