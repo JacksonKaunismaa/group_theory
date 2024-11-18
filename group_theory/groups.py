@@ -49,7 +49,9 @@ class Group(set):
         self.name = name
         self.quotient_map = None
 
-    def _parse(self, equation: str, initial=False) -> GroupElement:  # helper function for creating new expressions
+    def _parse(
+        self, equation: str, initial=False
+    ) -> GroupElement:  # helper function for creating new expressions
         raise NotImplementedError
 
     def _generate_all(self):
@@ -61,24 +63,34 @@ class Group(set):
         return type(self) is type(other)
 
     def identity_expr(self):
-          # helper function to return an expr, pretty much only used in generate
+        # helper function to return an expr, pretty much only used in generate
         raise NotImplementedError
 
-    def _identity_group(self):   # helper function return a Group containing only an identity {Expression, Permutation}
+    def _identity_group(
+        self,
+    ):  # helper function return a Group containing only an identity {Expression, Permutation}
         expr = self.identity_expr()
         return self.subgroup(expr)
 
     def generators(self) -> List[T]:
         raise NotImplementedError
 
-    def subgroup(self, *elems):  # create an empty subgroup that has the same multiplication rules
+    def subgroup(
+        self, *elems
+    ):  # create an empty subgroup that has the same multiplication rules
         group = Group(*elems, name=self.name, verbose=self.verbose)
-        set_these = ["singleton_rules", "general_rules", "n", "symbols",
-                     "simplify_cache", "quotient_map"]
+        set_these = [
+            "singleton_rules",
+            "general_rules",
+            "n",
+            "symbols",
+            "simplify_cache",
+            "quotient_map",
+        ]
         for var_name in set_these:
             if hasattr(self, var_name):
                 obj = getattr(self, var_name)
-                if var_name in ['quotient_map'] and obj:
+                if var_name in ["quotient_map"] and obj:
                     obj = obj.copy()
                 setattr(group, var_name, obj)
         return group
@@ -86,7 +98,7 @@ class Group(set):
     def evaluate(self, equation: Union[GroupElement, str]) -> GroupElement:
         if isinstance(equation, str):
             return self._parse(equation).simplify()
-        elif isinstance(equation, GroupElement): # ie. already GroupElement
+        elif isinstance(equation, GroupElement):  # ie. already GroupElement
             return equation
         else:
             raise ValueError(f"Unknown type '{type(equation)}' in equation")
@@ -106,9 +118,7 @@ class Group(set):
     def __iter__(self):
         return self.iterate()
 
-
     # Properties
-
 
     @property
     def is_perm_group(self):
@@ -123,9 +133,11 @@ class Group(set):
             return False
         for elem1 in self:
             for elem2 in self:
-                if elem1/elem2 not in self:
+                if elem1 / elem2 not in self:
                     if verbose:
-                        print(f"{elem1=}, {elem2=} generates {elem1/elem2} not in subgroup")
+                        print(
+                            f"{elem1=}, {elem2=} generates {elem1/elem2} not in subgroup"
+                        )
                     return False
         return True
 
@@ -138,14 +150,17 @@ class Group(set):
             for g in self:
                 if g * h / g not in subgroup:
                     if verbose:
-                        print(f"group_elem={g}, subgroup_elem={h} generates {g*h/g} not in subgroup")
+                        print(
+                            f"group_elem={g}, subgroup_elem={h} generates {g*h/g} not in subgroup"
+                        )
                     return False
         return True
 
-
     # Operations
 
-    def __mul__(self, other):  # ie Group * [Expression, Group, str, list[str]] (right cosets)
+    def __mul__(
+        self, other
+    ):  # ie Group * [Expression, Group, str, list[str]] (right cosets)
         if isinstance(other, GroupElement):
             new_elems = self.subgroup()
             for elem in self:
@@ -166,8 +181,7 @@ class Group(set):
         else:
             return NotImplemented
 
-
-    def __rmul__(self, other): # ie. Expression * Group (left cosets)
+    def __rmul__(self, other):  # ie. Expression * Group (left cosets)
         if isinstance(other, GroupElement):
             new_elems = self.subgroup()
             for elem in self:
@@ -182,25 +196,32 @@ class Group(set):
         else:
             return NotImplemented
 
-
-    def __truediv__(self, other): # ie. Group / {Term, Permutation}
+    def __truediv__(self, other):  # ie. Group / {Term, Permutation}
         if isinstance(other, Group):
             if not self._same_group_type(other):
-                raise ValueError("Incompatible group types {self.name} and {other.name}")
+                raise ValueError(
+                    "Incompatible group types {self.name} and {other.name}"
+                )
             if not self.is_normal(other):
                 raise ValueError("Attempting to quotient by a non-normal subgroup")
             cosets = self.find_cosets(other)
             # print("cosets", cosets)
-            quotient_map = {x: representative for representative, coset in cosets.items() for x in coset}
+            quotient_map = {
+                x: representative
+                for representative, coset in cosets.items()
+                for x in coset
+            }
             reprs = cosets.keys()
             quotient = self.subgroup(*reprs)
             for representative in quotient_map.values():
-                representative.group = quotient  # update the group in the map to the new, correct thing
+                representative.group = (
+                    quotient  # update the group in the map to the new, correct thing
+                )
             quotient.quotient_map = quotient_map
             return quotient
 
         elif isinstance(other, GroupElement):
-            return self*other.inv()
+            return self * other.inv()
         elif isinstance(other, list) and isinstance(other[0], str):
             elems = self.generate(*other)
             return self / elems
@@ -212,7 +233,6 @@ class Group(set):
 
     def __or__(self, other):
         return self.subgroup(*super().__or__(other))
-
 
     def generate(self, *exprs) -> "Group":
         if len(exprs) == 0:
@@ -234,16 +254,17 @@ class Group(set):
             start = frontier.pop()
             # print("checking elem", start)
             for elem in flat_exprs:
-                next_elem = start*elem
+                next_elem = start * elem
                 if next_elem not in visited:
                     # print("found new node", next)
                     frontier.add(next_elem)
                     visited.add(next_elem)
-                    #yield next  # so that we can do infinite groups as well
+                    # yield next  # so that we can do infinite groups as well
         return visited
 
-
-    def centralizer(self, elems: Union['Group', List[str], List[GroupElement]]) -> 'Group':
+    def centralizer(
+        self, elems: Union["Group", List[str], List[GroupElement]]
+    ) -> "Group":
         if isinstance(elems, list):
             elems = self.evaluates(*elems)
 
@@ -252,29 +273,33 @@ class Group(set):
         commuters = self.subgroup()
         for candidate in self:
             for pt in elems:
-                if pt*candidate != candidate*pt:
+                if pt * candidate != candidate * pt:
                     break
             else:
                 commuters.add(candidate)
         return commuters
 
-
     def center(self):
         return self.centralizer(self)
 
-
     def conjugacy_class(self, elem, paired=False, track=False):
         reachable = []
-        generators = []  # the associated list of elements that generate each coset/element in "reachable"
+        generators = (
+            []
+        )  # the associated list of elements that generate each coset/element in "reachable"
         elem = self.evaluate(elem)
         for other in self.iterate(track=track):
             new_elem = other * elem / other
-            #print(other, "generates", new_elem)
+            # print(other, "generates", new_elem)
             if new_elem not in reachable:
                 reachable.append(new_elem)
                 generators.append(other)
-            elif paired:  # if we want to know what to conjugate with to get each element in the conj_class,
-                idx = reachable.index(new_elem) # then set paired=True. This bit just picks the 'simplest' such element
+            elif (
+                paired
+            ):  # if we want to know what to conjugate with to get each element in the conj_class,
+                idx = reachable.index(
+                    new_elem
+                )  # then set paired=True. This bit just picks the 'simplest' such element
                 if other.simpler_heuristic(generators[idx]):
                     generators[idx] = other
         if paired:
@@ -284,7 +309,6 @@ class Group(set):
         else:
             return reachable
 
-
     def orbit(self, base_elem: GroupElement):
         base_elem = self.evaluate(base_elem)
 
@@ -292,24 +316,27 @@ class Group(set):
         elem = base_elem
         reachable.add(elem)
         while not elem.is_identity:
-            elem = elem*base_elem
+            elem = elem * base_elem
             reachable.add(elem)
         return reachable
 
-
-    def normalizer(self, elems): # no need to do .evaluate here, since we .generate anyway
+    def normalizer(
+        self, elems
+    ):  # no need to do .evaluate here, since we .generate anyway
         if not isinstance(elems, Group):
             elems = self.generate(elems)
         commuters = self.subgroup()
         for candidate in self:
             for elem in elems:
-                if candidate*elem/candidate not in elems:
+                if candidate * elem / candidate not in elems:
                     break
             else:
                 commuters.add(candidate)
         return commuters
 
-    def normal_closure(self, elems):  # return smallest normal subgroup that contains `elems`
+    def normal_closure(
+        self, elems
+    ):  # return smallest normal subgroup that contains `elems`
         if not isinstance(elems, Iterable):
             elems = self.generate(elems)
         expanded = self.subgroup()
@@ -326,7 +353,6 @@ class Group(set):
             expanded &= g * elems / g
         return expanded
 
-
     def find_cosets(self, coset: "Group", left=True):
         cosets = {}
         full_group = self.copy()
@@ -337,7 +363,9 @@ class Group(set):
             else:
                 new_coset = coset * elem
             if new_coset not in cosets.values():
-                best_representative = elem  # heuristically find the simplest representative
+                best_representative = (
+                    elem  # heuristically find the simplest representative
+                )
                 for representative in new_coset:
                     if representative.simpler_heuristic(best_representative):
                         best_representative = representative

@@ -1,6 +1,6 @@
 from collections import defaultdict
 from typing import Union, List, Optional
-from itertools import chain
+
 # import copy
 
 from . import utils
@@ -10,9 +10,16 @@ from .groups import Group
 
 IDENTITY_SYMBOLS = ["e", "1"]
 
+
 class SymbolicGroup(Group):
-    def __init__(self, *elems: 'Expression', rules: List[str], name: str='', generate: bool = False,
-                 verbose: bool = False):
+    def __init__(
+        self,
+        *elems: "Expression",
+        rules: List[str],
+        name: str = "",
+        generate: bool = False,
+        verbose: bool = False,
+    ):
         super().__init__(*elems, name=name, verbose=verbose)
         self.singleton_rules = {}
         self.general_rules = defaultdict(list)
@@ -25,17 +32,23 @@ class SymbolicGroup(Group):
             pattern_expr = self._parse(pattern, initial=True)
             result_expr = self._parse(result, initial=True)
 
-            self._add_syms(pattern_expr, result_expr)  # so that we can generate the group later
+            self._add_syms(
+                pattern_expr, result_expr
+            )  # so that we can generate the group later
 
-            if len(pattern_expr) == 1 and  result_expr.is_identity:  # if symbol is cyclic, do this for efficiency
+            if (
+                len(pattern_expr) == 1 and result_expr.is_identity
+            ):  # if symbol is cyclic, do this for efficiency
                 self.singleton_rules[pattern_expr[0].sym] = pattern_expr[0].exp
                 continue
-            self.general_rules[len(pattern_expr)].append((pattern_expr, result_expr))    # map symbol -> (exponent, replacement)
+            self.general_rules[len(pattern_expr)].append(
+                (pattern_expr, result_expr)
+            )  # map symbol -> (exponent, replacement)
 
         if generate:
             self._generate_all()
 
-    def _add_syms(self, *exprs: 'Expression'):
+    def _add_syms(self, *exprs: "Expression"):
         for expr in exprs:
             for term in expr:
                 if not term.is_identity:
@@ -48,8 +61,10 @@ class SymbolicGroup(Group):
     def _same_group_type(self, other: Group):
         types_match = super()._same_group_type(other)
         if types_match:
-            return (self.general_rules == other.general_rules and
-                    self.singleton_rules == other.singleton_rules)
+            return (
+                self.general_rules == other.general_rules
+                and self.singleton_rules == other.singleton_rules
+            )
         return False
 
     def _identity_term(self):
@@ -59,29 +74,39 @@ class SymbolicGroup(Group):
     def identity_expr(self):
         return Expression([self._identity_term()], self)
 
-    def _parse(self, equation: str, initial: bool = False) -> 'Expression':
+    def _parse(self, equation: str, initial: bool = False) -> "Expression":
         return Expression(equation, self, initial=initial)
 
     def generators(self):
         return list(self.symbols)
 
 
-class Term(GroupElement):  # a single instance of something like "r^3", r is the sym, 3 is the exp
-    def __init__(self, sym: str | None, exp: int, group: Optional["Group"]=None, cyclic_rule: Optional[int]=None):
+class Term(
+    GroupElement
+):  # a single instance of something like "r^3", r is the sym, 3 is the exp
+    def __init__(
+        self,
+        sym: str | None,
+        exp: int,
+        group: Optional["Group"] = None,
+        cyclic_rule: Optional[int] = None,
+    ):
         # cylcic rule is the number of times the symbol can be repeated before it wraps around
         # can specify either a Group, which is only used to extract the cyclic_rule, or pass cyclic_rule directly
         self.sym = sym
         self.exp = exp
         self.cyclic_rule = cyclic_rule
         if group is not None:
-            self.cyclic_rule = group.singleton_rules.get(sym, None)  # mostly for efficiency
+            self.cyclic_rule = group.singleton_rules.get(
+                sym, None
+            )  # mostly for efficiency
         self.simplify()
 
     def simplify(self):
         if self.cyclic_rule:
-           if self.exp < 0:
-               self.exp += (self.cyclic_rule*(1+(-self.exp)//self.cyclic_rule))
-           self.exp = self.exp % self.cyclic_rule
+            if self.exp < 0:
+                self.exp += self.cyclic_rule * (1 + (-self.exp) // self.cyclic_rule)
+            self.exp = self.exp % self.cyclic_rule
         if self.exp == 0:
             self.sym = None  # make self identity, not great since now we have 2 implementations of identity() (other is in Group)
         return self
@@ -105,7 +130,9 @@ class Term(GroupElement):  # a single instance of something like "r^3", r is the
             if other.is_identity:  # to avoid NoneType issues
                 return self
             if self.sym == other.sym:
-                return Term(self.sym, self.exp + other.exp, cyclic_rule=self.cyclic_rule)
+                return Term(
+                    self.sym, self.exp + other.exp, cyclic_rule=self.cyclic_rule
+                )
             else:
                 return [self, other]
 
@@ -113,7 +140,9 @@ class Term(GroupElement):  # a single instance of something like "r^3", r is the
             return Expression([self], other.group)._mul(other)
         else:
             print(type(other), "type")
-            raise NotImplementedError(f"Don't know how to multiply Term * {type(other)}")
+            raise NotImplementedError(
+                f"Don't know how to multiply Term * {type(other)}"
+            )
 
     # def copy(self):
     #     return Term(self.sym, self.exp, cyclic_rule=self.cyclic_rule)
@@ -160,37 +189,46 @@ class Term(GroupElement):  # a single instance of something like "r^3", r is the
 
     # frontend division (yes simplify step)
     def __truediv__(self, other):
-        if isinstance(other, (Expression,Term)):
+        if isinstance(other, (Expression, Term)):
             return self._mul(other.inv()).simplify()
         else:
             return NotImplemented
 
-    def simpler_heuristic(self, other: 'Term') -> bool:
+    def simpler_heuristic(self, other: "Term") -> bool:
         identity_check = super().simpler_heuristic(other)
         if identity_check is not None:
             return identity_check
         return self.exp < other.exp
 
 
-
 class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
-    def __init__(self, expr: Union[List[Term], str], group: "SymbolicGroup", initial=False):
+    def __init__(
+        self, expr: Union[List[Term], str], group: "SymbolicGroup", initial=False
+    ):
         self.group = group
         if isinstance(expr, str):  # parse it if its a string
             expr = self._parse(expr, initial=initial)
         self.expr = expr
         if not self.expr:
-            self.expr = [group._identity_term()]  # allowing empty expresions makes things buggy
+            self.expr = [
+                group._identity_term()
+            ]  # allowing empty expresions makes things buggy
 
     def _parse(self, equation: str, initial: bool) -> List[Term]:
         terms = equation.strip().split()
         start = self.group.identity_expr()
         for t in terms:
             if t[0] in IDENTITY_SYMBOLS:
-                next_term = self.group.identity_expr()  # initial=True when parsing the group rules themselves, since we don't know
-            elif t[0] not in self.group.symbols and not initial:  # 'symbols' at that point, so we can't check against it
-                raise ValueError(f"Unknown symbol '{t[0]}' while parsing expression of a '{self.group.name}' group."
-                                 f"Possible symbols are '{self.group.symbols}'")
+                next_term = (
+                    self.group.identity_expr()
+                )  # initial=True when parsing the group rules themselves, since we don't know
+            elif (
+                t[0] not in self.group.symbols and not initial
+            ):  # 'symbols' at that point, so we can't check against it
+                raise ValueError(
+                    f"Unknown symbol '{t[0]}' while parsing expression of a '{self.group.name}' group."
+                    f"Possible symbols are '{self.group.symbols}'"
+                )
             elif len(t) == 1:
                 next_term = Term(t[0], 1, group=self.group)  # 1 is default exponent
             else:
@@ -202,7 +240,7 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
 
     def windows_match(self, window, pattern):
         if (window[0] >= pattern[0]) and (window[-1] >= pattern[-1]):
-            for actual,expected in zip(window[1:-1], pattern[1:-1]):
+            for actual, expected in zip(window[1:-1], pattern[1:-1]):
                 if actual != expected:
                     return False
             return True
@@ -216,7 +254,7 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
         updated = True  # if we've applied a rule or not in the given iteration
         n = 0  # check total iterations so far
         # self.tprint("doing the printing?")
-        simplified = self # working copy that we will be writing to
+        simplified = self  # working copy that we will be writing to
 
         while updated and n < max_iters:
             n += 1
@@ -229,16 +267,22 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
                 simplified.expr = self.group.simplify_cache[simplified]
                 break
 
-            for window_size in sorted(self.group.general_rules.keys(), reverse=True):  # check all possible window-sizes we have rules for
+            for window_size in sorted(
+                self.group.general_rules.keys(), reverse=True
+            ):  # check all possible window-sizes we have rules for
                 if len(simplified) < window_size:
                     continue
                 new_expr = self.group.identity_expr()
 
-                window_iter = utils.sliding_window(simplified.expr, window_size)  # current window we are looking to apply rules in
+                window_iter = utils.sliding_window(
+                    simplified.expr, window_size
+                )  # current window we are looking to apply rules in
                 last_posn = 0  # track where we've appended up to, so we can append missing ones at the end
                 for window in window_iter:
                     # self.tprint("checking window of", window, type(window))
-                    for pattern,result in self.group.general_rules[window_size]:  # check all possible rules at this given window
+                    for pattern, result in self.group.general_rules[
+                        window_size
+                    ]:  # check all possible rules at this given window
                         # self.tprint("\tchecking window against", pattern)
                         if self.windows_match(window, pattern):  # if the rule applies
                             # self.tprint("\t\twindow matches, proceeding with replacement...")
@@ -256,14 +300,33 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
                                 right_exponent = window[1].exp  # l
                                 result_exp = result[0].exp  # k
                                 # do modular exponentiation for a speed-up
-                                new_exp = right_exponent*pow(result_exp, left_exponent, result[0].cyclic_rule) #
-                                translation = Expression([Term(result[0].sym, new_exp, cyclic_rule=result[0].cyclic_rule),
-                                                          Term(result[1].sym, left_exponent, cyclic_rule=result[1].cyclic_rule)],
-                                                          self.group)
+                                new_exp = right_exponent * pow(
+                                    result_exp, left_exponent, result[0].cyclic_rule
+                                )  #
+                                translation = Expression(
+                                    [
+                                        Term(
+                                            result[0].sym,
+                                            new_exp,
+                                            cyclic_rule=result[0].cyclic_rule,
+                                        ),
+                                        Term(
+                                            result[1].sym,
+                                            left_exponent,
+                                            cyclic_rule=result[1].cyclic_rule,
+                                        ),
+                                    ],
+                                    self.group,
+                                )
                             elif window_size > 1:
-                                translation = result._concat([window[0]._truediv(pattern[0])], [window[-1]._truediv(pattern[-1])])
+                                translation = result._concat(
+                                    [window[0]._truediv(pattern[0])],
+                                    [window[-1]._truediv(pattern[-1])],
+                                )
                             else:  # window_size == 1
-                                translation = result._concat([], [window[-1]._truediv(pattern[-1])])
+                                translation = result._concat(
+                                    [], [window[-1]._truediv(pattern[-1])]
+                                )
 
                             # self.tprint("\t\twill be adding", translation)
 
@@ -273,12 +336,12 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
                             try:  # skip window_size worth of windows because we've already used all those terms
                                 last_posn += window_size
                                 # self.tprint("\t\tnew last posn", last_posn)
-                                for _ in range(window_size-1):
+                                for _ in range(window_size - 1):
                                     window = next(window_iter)
-                                #window = [next(window_iter) for _ in range(window_size)][0]
+                                # window = [next(window_iter) for _ in range(window_size)][0]
                             except StopIteration:
                                 # self.tprint("stop iter")
-                                break # no need to check other rules if we've ran out of windows to look at
+                                break  # no need to check other rules if we've ran out of windows to look at
                             # self.tprint("\t\tafter advancing, new_expr is now", new_expr)
                             break  # we've made a valid pattern match at this location, so don't check any more patterns
                     else:  # if we reach the end, we've checked all patterns and nothing worked, so just append 1 term and move the window
@@ -288,7 +351,9 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
                         # self.tprint("\tafter appending, new_expr is now", new_expr)
 
                 # self.tprint("appending last window of", simplified[last_posn:])
-                if last_posn != len(simplified): # append any missing terms that got skipped over because we moved window
+                if last_posn != len(
+                    simplified
+                ):  # append any missing terms that got skipped over because we moved window
                     new_expr = new_expr._mul(simplified[last_posn:])
                 # self.tprint("end_cycle new_expr is now", new_expr)
                 simplified = new_expr
@@ -298,9 +363,11 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
         # technically there should be .copy() on each return statement, but unless the client is doing something like
         # directly modifying .exp or .sym fields, it won't really have problems, since every "proper" operation will
         # create new Terms/Expressions as needed and won't mess up the simplify_cache
-        if self.group.quotient_map:  # don't bother checking existence, since that should throw an error anyway
-            return self.group.quotient_map[simplified]#.copy()
-        return simplified#.copy()
+        if (
+            self.group.quotient_map
+        ):  # don't bother checking existence, since that should throw an error anyway
+            return self.group.quotient_map[simplified]  # .copy()
+        return simplified  # .copy()
 
     def _combine_like_terms(self, n: int) -> "Expression":
         # if self is abcd * xyz then we should combine like terms starting from the 'gap' between
@@ -310,30 +377,38 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
         # which would imply that the multiply was multiplying 2 Terms with different base symbols and so was forced
         # to concatenate them into a List[Term] object
         curr_term = self.group._identity_term()
-        for i, (term1, term2) in enumerate(zip(self.expr[n-1::-1], self.expr[n:])):
+        for i, (term1, term2) in enumerate(zip(self.expr[n - 1 :: -1], self.expr[n:])):
             # print("looking at", term1, curr_term, term2)
-            curr_term = term1._mul(curr_term) #  * term2
+            curr_term = term1._mul(curr_term)  #  * term2
             curr_term = curr_term._mul(term2)
-            if isinstance(curr_term, list):  # in Term*Term multiplication list => Terms couldn't be combined
+            if isinstance(
+                curr_term, list
+            ):  # in Term*Term multiplication list => Terms couldn't be combined
                 break
         else:  # at this point curr_term will be a Term, since we didn't break out
             curr_term = [curr_term]
         curr_term = self._filter_identity(curr_term)
-        new_expr = curr_term._concat(self.expr[:n-i-1], self.expr[n+i+1:]) # self.expr[:n-i-1] * curr_term *  self.expr[n+i+1:]
+        new_expr = curr_term._concat(
+            self.expr[: n - i - 1], self.expr[n + i + 1 :]
+        )  # self.expr[:n-i-1] * curr_term *  self.expr[n+i+1:]
 
         if isinstance(new_expr, Expression):
             return new_expr
         self.expr = new_expr  # can modify in-place here since only used via __mul__, which creates a new Expression anyway
         return self
 
-    def _filter_identity(self, expr=None) -> "Expression":  # remove all identity terms from an Expression or a list
+    def _filter_identity(
+        self, expr=None
+    ) -> "Expression":  # remove all identity terms from an Expression or a list
         if expr is None:  # need the expr parameter since sometimes it handles lists
             expr = self.expr
         if isinstance(expr, Expression):
             expr_terms = expr.expr
         else:
             expr_terms = expr
-        return Expression(list(filter(lambda x: not x.is_identity, expr_terms)), self.group)
+        return Expression(
+            list(filter(lambda x: not x.is_identity, expr_terms)), self.group
+        )
 
     @property
     def is_identity(self):
@@ -349,21 +424,23 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
     # isn't called. Used to avoid infinite loops, but probably shouldn't be used by clients. Should only use
     # when you know the combining like terms won't do anything
     # for multiplying {list,Expression} * Expression * {list, Expression}
-    def _concat(self, left: Union[list, "Expression"],
-                right: Union[list, "Expression"]) -> "Expression":
+    def _concat(
+        self, left: Union[list, "Expression"], right: Union[list, "Expression"]
+    ) -> "Expression":
         if isinstance(left, list):
             left = Expression(left, self.group)
         if isinstance(right, list):
             right = Expression(right, self.group)
-        return Expression(left.expr + self.expr + right.expr, self.group)._filter_identity()
+        return Expression(
+            left.expr + self.expr + right.expr, self.group
+        )._filter_identity()
 
     # def copy(self):  # need deepcopy since its a list
     #     # return Expression(copy.deepcopy(self.expr), self.group)
     #     return Expression(self.expr.copy(), self.group)
 
-
     # for doing multiply in a simplify operatino so that we don't infinitely recurse (backend mul)
-    def _mul(self, other) -> "Expression": # for Expression * {Expression, Term}
+    def _mul(self, other) -> "Expression":  # for Expression * {Expression, Term}
         if isinstance(other, Expression):
             other_expr = other.expr
         elif isinstance(other, list):
@@ -371,14 +448,15 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
         elif isinstance(other, Term):
             other_expr = [other]
         else:
-            raise NotImplementedError(f"Don't know how to multiply Expression * {type(other)}")
+            raise NotImplementedError(
+                f"Don't know how to multiply Expression * {type(other)}"
+            )
         new_expr = Expression(self.expr + other_expr, self.group)
         return new_expr._combine_like_terms(len(self))
 
-
     # frontend of multiplication, so that simplification is done automatically
     def __mul__(self, other):  # Expression * {Expression, Term}
-        if isinstance(other, (Expression,Term)):
+        if isinstance(other, (Expression, Term)):
             return self._mul(other).simplify()
         else:
             return NotImplemented
@@ -394,7 +472,7 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
 
     # frontend division (with simplify step)
     def __truediv__(self, other):
-        if isinstance(other, (Term,Expression)):
+        if isinstance(other, (Term, Expression)):
             return self._mul(other.inv()).simplify()
         else:
             return NotImplemented
@@ -407,7 +485,9 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
 
     def __eq__(self, other):  # need to check len because zip truncates elements
         try:
-            return len(self) == len(other) and all(t1 == t2 for t1,t2 in zip(self.expr, other.expr))
+            return len(self) == len(other) and all(
+                t1 == t2 for t1, t2 in zip(self.expr, other.expr)
+            )
         except TypeError:
             print(self, type(self), "######", other, type(other))
             raise
@@ -418,13 +498,15 @@ class Expression(GroupElement):  # a sequence of Term objects,  like `r^2 f`
     def __hash__(self):
         return hash(str(self))
 
-    def simpler_heuristic(self, other: 'Expression') -> bool:
+    def simpler_heuristic(self, other: "Expression") -> bool:
         identity_check = super().simpler_heuristic(other)
         if identity_check is not None:
             return identity_check
 
         if len(self) < len(other):  # shorter Expressions are better
             return True
-        if sum(x.exp for x in self) < sum(x.exp for x in other): # smaller exponents are better
+        if sum(x.exp for x in self) < sum(
+            x.exp for x in other
+        ):  # smaller exponents are better
             return True
         return False
