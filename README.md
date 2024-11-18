@@ -1,6 +1,6 @@
-# Group Theory Calculator
+# Group Theory
 
-This project provides an implementation of various group theory concepts, including groups, permutations, and symbolic expressions. The codebase is structured to facilitate the creation, manipulation, and analysis of different types of groups.
+A Python package for performing computations in group theory. It includes implementations of permutation groups, symbolic groups, and utilities for working with group elements.
 
 ## Project Structure
 
