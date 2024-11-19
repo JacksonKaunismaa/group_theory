@@ -6,13 +6,13 @@ checking subgroup properties, and performing group operations.
 """
 
 from collections.abc import Iterable
-from typing import List, Union
+from typing import Any, Generic, List, Union
 from tqdm import tqdm
 
 from .group_element import GroupElement, T
 
 
-class Group(set):
+class Group(set, Generic[T]):
     """
     Represents a mathematical group, including both the elements of the group
     and the rules of the representation.
@@ -50,7 +50,7 @@ class Group(set):
         self.quotient_map = None
 
     def _parse(
-        self, equation: str, initial=False
+        self, equation: Any, initial=False
     ) -> GroupElement:  # helper function for creating new expressions
         raise NotImplementedError
 
@@ -75,35 +75,20 @@ class Group(set):
     def generators(self) -> List[T]:
         raise NotImplementedError
 
-    def subgroup(
-        self, *elems
-    ):  # create an empty subgroup that has the same multiplication rules
-        group = Group(*elems, name=self.name, verbose=self.verbose)
-        set_these = [
-            "singleton_rules",
-            "general_rules",
-            "n",
-            "symbols",
-            "simplify_cache",
-            "quotient_map",
-        ]
-        for var_name in set_these:
-            if hasattr(self, var_name):
-                obj = getattr(self, var_name)
-                if var_name in ["quotient_map"] and obj:
-                    obj = obj.copy()
-                setattr(group, var_name, obj)
-        return group
+    def copy_subgroup_attrs_to(self, subgroup: "Group"):
+        """Copy important attrs to another group for subgroup creation"""
+        if self.quotient_map is not None:
+            subgroup.quotient_map = self.quotient_map.copy()
 
-    def evaluate(self, equation: Union[GroupElement, str]) -> GroupElement:
-        if isinstance(equation, str):
-            return self._parse(equation).simplify()
-        elif isinstance(equation, GroupElement):  # ie. already GroupElement
-            return equation
-        else:
-            raise ValueError(f"Unknown type '{type(equation)}' in equation")
+    def subgroup(self, *elems: T) -> "Group":
+        raise NotImplementedError
 
-    def evaluates(self, *equations: str | GroupElement) -> List[GroupElement]:
+    def evaluate(self, equation: Union[T, Any]) -> T:
+        if isinstance(equation, GroupElement):
+            return equation  # type: ignore
+        return self._parse(equation).simplify()
+
+    def evaluates(self, *equations: Any | T) -> List[T]:
         return [self.evaluate(eq) for eq in equations]
 
     def copy(self):
@@ -257,9 +242,7 @@ class Group(set):
                     # yield next  # so that we can do infinite groups as well
         return visited
 
-    def centralizer(
-        self, elems: Union["Group", List[str], List[GroupElement]]
-    ) -> "Group":
+    def centralizer(self, elems: Union["Group", List[Any]]) -> "Group":
         if isinstance(elems, list):
             elems = self.evaluates(*elems)
 

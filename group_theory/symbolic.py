@@ -1,17 +1,17 @@
 from collections import defaultdict
-from typing import Any, Union, List, Optional
+from typing import Any, Generic, Union, List, Optional
 
 # import copy
 
 from . import utils
-from .group_element import GroupElement
+from .group_element import GroupElement, T
 from .groups import Group
 
 
 IDENTITY_SYMBOLS = ["e", "1"]
 
 
-class SymbolicGroup(Group):
+class SymbolicGroup(Group, Generic[T]):
     """
     A class representing a symbolic group, inheriting from the Group class.
 
@@ -25,7 +25,7 @@ class SymbolicGroup(Group):
     def __init__(
         self,
         *elems: "Expression",
-        rules: List[str],
+        rules: List[str] | None = None,
         name: str = "",
         generate: bool = True,
         verbose: bool = False,
@@ -37,23 +37,24 @@ class SymbolicGroup(Group):
         self.simplify_cache = {}
 
         # parse rules
-        for rule in rules:
-            pattern, result = rule.split("=")
-            pattern_expr = self._parse(pattern, initial=True)
-            result_expr = self._parse(result, initial=True)
+        if rules:
+            for rule in rules:
+                pattern, result = rule.split("=")
+                pattern_expr = self._parse(pattern, initial=True)
+                result_expr = self._parse(result, initial=True)
 
-            self._add_syms(
-                pattern_expr, result_expr
-            )  # so that we can generate the group later
+                self._add_syms(
+                    pattern_expr, result_expr
+                )  # so that we can generate the group later
 
-            if (
-                len(pattern_expr) == 1 and result_expr.is_identity
-            ):  # if symbol is cyclic, do this for efficiency
-                self.singleton_rules[pattern_expr[0].sym] = pattern_expr[0].exp
-                continue
-            self.general_rules[len(pattern_expr)].append(
-                (pattern_expr, result_expr)
-            )  # map symbol -> (exponent, replacement)
+                if (
+                    len(pattern_expr) == 1 and result_expr.is_identity
+                ):  # if symbol is cyclic, do this for efficiency
+                    self.singleton_rules[pattern_expr[0].sym] = pattern_expr[0].exp
+                    continue
+                self.general_rules[len(pattern_expr)].append(
+                    (pattern_expr, result_expr)
+                )  # map symbol -> (exponent, replacement)
 
         if generate:
             self._generate_all()
@@ -85,6 +86,18 @@ class SymbolicGroup(Group):
 
     def generators(self):
         return list(self.symbols)
+
+    def subgroup(self, *elems: Union["Expression", Any]) -> "SymbolicGroup":
+        """Create a subgroup with the given elements."""
+        expr_elems = self.evaluates(*elems)
+        group = SymbolicGroup(
+            *expr_elems, name=self.name, verbose=self.verbose, generate=False
+        )
+        group.singleton_rules = self.singleton_rules
+        group.general_rules = self.general_rules
+        group.symbols = self.symbols
+        self.copy_subgroup_attrs_to(group)
+        return group
 
 
 class Term:  # (GroupElement):

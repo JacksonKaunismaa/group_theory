@@ -47,6 +47,14 @@ class PermutationGroup(Group):
         # list of adjacent transpositions
         return [Permutation([[a, a + 1]], self) for a in range(0, self.n - 1)]
 
+    def subgroup(self, *elems: Any) -> "PermutationGroup":
+        perm_elems = self.evaluates(*elems)
+        group = PermutationGroup(
+            *perm_elems, n=self.n, name=self.name, verbose=self.verbose, generate=False
+        )
+        group.copy_subgroup_attrs_to(self)
+        return group
+
 
 class Permutation(GroupElement):
     def __init__(

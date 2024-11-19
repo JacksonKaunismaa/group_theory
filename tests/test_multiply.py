@@ -1,7 +1,6 @@
 import pytest
 from group_theory.group_utils import get_group
 from group_theory.symbolic import SymbolicGroup
-from group_theory.permutation import Permutation
 
 
 @pytest.mark.parametrize(
@@ -198,5 +197,5 @@ def test_permutation_multiplication(group_name, tests):
 def test_permutation_result_notation_parsing(group_name, tests):
     gr = get_group(group_name)
     for result_notation, cycle_notation in tests:
-        perm = Permutation(result_notation, gr).simplify()
+        perm = gr.evaluate(result_notation).simplify()
         assert str(perm) == cycle_notation

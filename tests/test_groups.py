@@ -3,16 +3,19 @@ from group_theory.group_utils import get_group
 
 
 @pytest.mark.parametrize(
-    "test_group,elems",
+    "test_group, elems, is_subgroup",
     [
-        ("s 5", ["(1 2)", "(1 2 3)", "(1 5)"]),
-        ("d 12", ["r3", "f"]),
+        ("s 5", ["(1 2)", "(1 2 3)", "(1 5)"], False),
+        ("d 12", ["r3 f", "e"], True),
+        ("s 3", ["(1 2)", "(1 3)", "(1 2 3)", "(2 3)", "(1 3 2)"], False),
+        ("s 3", ["(1 2)", "(1 3)", "(1 2 3)", "(2 3)", "(1 3 2)", "()"], True),
+        ("d 4", ["r", "r2"], False),
     ],
 )
-def test_group_is_subgroup(test_group, elems):
+def test_group_subgroup(test_group, elems, is_subgroup):
     gr = get_group(test_group, generate=True)
-    subgroup = gr.generate(*elems)
-    assert subgroup.is_subgroup()
+    subgroup = gr.subgroup(*elems)
+    assert subgroup.is_subgroup() == is_subgroup
 
 
 @pytest.mark.parametrize(
