@@ -1,5 +1,5 @@
 import itertools
-from typing import Sequence, Union, List
+from typing import Any, Sequence, Union, List
 
 from .group_element import GroupElement
 from .groups import Group
@@ -64,6 +64,8 @@ class Permutation(GroupElement):
             self.parse_result_notation(notation)  # type: ignore
         elif notation and isinstance(notation[0], list):
             self.cycle: List[List[int]] = notation
+        elif not notation:
+            self.cycle = []
         else:
             raise ValueError(f"Invalid notation {notation}")
 
@@ -192,7 +194,10 @@ class Permutation(GroupElement):
         else:
             return NotImplemented
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any):
+        if not isinstance(other, Permutation):
+            # try to convert to Permutation
+            other = Permutation(other, self.group)
         return str(self) == str(other)
 
     def simpler_heuristic(self, other: "Permutation") -> bool:

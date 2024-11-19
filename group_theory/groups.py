@@ -154,9 +154,8 @@ class Group(set):
 
     # Operations
 
-    def __mul__(
-        self, other
-    ):  # ie Group * [Expression, Group, str, list[str]] (right cosets)
+    def __mul__(self, other: Union[GroupElement, "Group", str, List[str]]):
+        # ie Group * [Expression, Group, str, list[str]] (right cosets)
         if isinstance(other, GroupElement):
             new_elems = self.subgroup()
             for elem in self:

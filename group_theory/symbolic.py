@@ -87,7 +87,7 @@ class SymbolicGroup(Group):
         return list(self.symbols)
 
 
-class Term(GroupElement):
+class Term:  # (GroupElement):
     """
     Represents a single instance of a group element with a symbol and an exponent, such as "r^3".
 
@@ -168,22 +168,12 @@ class Term(GroupElement):
     # def copy(self):
     #     return Term(self.sym, self.exp, cyclic_rule=self.cyclic_rule)
 
-    # frontend of multiplication
-    def __mul__(self, other: GroupElement) -> Union["Expression", "Term", List["Term"]]:
-        if isinstance(other, (Expression, Term)):
-            return self._mul(other)
-        else:
-            return NotImplemented
-
     def __repr__(self):
         if self.exp == 1:
             return str(self.sym)
         if self.is_identity:
             return "e"
         return f"{self.sym}{self.exp}"
-
-    # def __len__(self):  # to be consistent with Expression, but shouldn't ever get called
-    #     return 1
 
     def __hash__(self):
         return hash(str(self))
@@ -201,19 +191,9 @@ class Term(GroupElement):
             return self
         return Term(self.sym, -self.exp, cyclic_rule=self.cyclic_rule)
 
-    # def __pow__(self, other):
-    #     return Term(self.sym, self.exp*other, cyclic_rule=self.cyclic_rule).simplify()
-
     # backend of division (no simplify step)
     def _truediv(self, other):
         return self._mul(other.inv())
-
-    # frontend division (yes simplify step)
-    def __truediv__(self, other):
-        if isinstance(other, (Expression, Term)):
-            return self._mul(other.inv()).simplify()
-        else:
-            return NotImplemented
 
     def simpler_heuristic(self, other: "Term") -> bool:
         identity_check = super().simpler_heuristic(other)
@@ -541,9 +521,9 @@ class Expression(GroupElement):
 
     def __eq__(self, other: Any):
         if not isinstance(other, Expression):
-            raise NotImplementedError(
-                f"Don't know how to compare Expression == {type(other)}"
-            )
+            # try to convert to Expression
+            other = Expression(other, self.group)
+
         # need to check len because zip truncates elements
         return len(self) == len(other) and all(
             t1 == t2 for t1, t2 in zip(self.expr, other.expr)
