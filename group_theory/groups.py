@@ -262,9 +262,8 @@ class Group(set, Generic[T]):
 
     def conjugacy_class(self, elem, paired=False, track=False):
         reachable = []
-        generators = (
-            []
-        )  # the associated list of elements that generate each coset/element in "reachable"
+        # the associated list of elements that generate each coset/element in "reachable"
+        generators = []
         elem = self.evaluate(elem)
         for other in self.iterate(track=track):
             new_elem = other * elem / other
@@ -287,7 +286,7 @@ class Group(set, Generic[T]):
         else:
             return reachable
 
-    def orbit(self, base_elem: GroupElement):
+    def orbit(self, base_elem: GroupElement) -> "Group":
         base_elem = self.evaluate(base_elem)
 
         reachable = self.subgroup()
@@ -298,9 +297,8 @@ class Group(set, Generic[T]):
             reachable.add(elem)
         return reachable
 
-    def normalizer(
-        self, elems
-    ):  # no need to do .evaluate here, since we .generate anyway
+    def normalizer(self, elems):
+        # no need to do .evaluate here, since we .generate anyway
         if not isinstance(elems, Group):
             elems = self.generate(elems)
         commuters = self.subgroup()
@@ -312,9 +310,8 @@ class Group(set, Generic[T]):
                 commuters.add(candidate)
         return commuters
 
-    def normal_closure(
-        self, elems
-    ):  # return smallest normal subgroup that contains `elems`
+    def normal_closure(self, elems):
+        # return smallest normal subgroup that contains `elems`
         if not isinstance(elems, Iterable):
             elems = self.generate(elems)
         expanded = self.subgroup()
@@ -323,7 +320,8 @@ class Group(set, Generic[T]):
         # print(expanded, "expanded")
         return self.generate(expanded)
 
-    def normal_core(self, elems):  # return largest normal subgroup contained in `elems`
+    def normal_core(self, elems):
+        # return largest normal subgroup contained in `elems`
         if not isinstance(elems, Iterable):
             elems = self.generate(elems)
         expanded = self.subgroup(*elems)

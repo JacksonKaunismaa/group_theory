@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Any, Generic, Union, List, Optional
 
+
 # import copy
 
 from . import utils
@@ -416,6 +417,8 @@ class Expression(GroupElement):
         for i, (term1, term2) in enumerate(zip(self.expr[n - 1 :: -1], self.expr[n:])):
             # print("looking at", term1, curr_term, term2)
             curr_term = term1._mul(curr_term)  #  * term2
+            if isinstance(curr_term, list):
+                break
             curr_term = curr_term._mul(term2)
             # in Term*Term multiplication, list => Terms couldn't be combined
             if isinstance(curr_term, list):
@@ -424,7 +427,7 @@ class Expression(GroupElement):
             curr_term = [curr_term]
         curr_term = self.filter_identity(curr_term)
         # self.expr[:n-i-1] * curr_term *  self.expr[n+i+1:]
-        new_expr = curr_term._concat(self.expr[: n - i - 1], self.expr[n + i + 1 :])
+        new_expr = curr_term._concat(self.expr[: n - i - 1], self.expr[n + i + 1 :])  # type: ignore
 
         if isinstance(new_expr, Expression):
             return new_expr
@@ -500,12 +503,27 @@ class Expression(GroupElement):
         new_expr = Expression(self.expr + other_expr, self.group)
         return new_expr.combine_like_terms(len(self))
 
-    def __mul__(self, other: "Expression"):
+    def __mul__(self, other: Union["Expression", str]) -> "Expression":
         """Multiply with full simplification."""
+        if isinstance(other, str):
+            other = Expression(other, self.group)
         if isinstance(other, Expression):
             return self._mul(other).simplify()
         else:
-            return NotImplemented
+            raise NotImplementedError(
+                f"Don't know how to multiply Expression * {type(other)}"
+            )
+
+    def __rmul__(self, other: Union["Expression", str]) -> "Expression":
+        """Multiply with full simplification."""
+        if isinstance(other, str):
+            other = Expression(other, self.group)
+        if isinstance(other, Expression):
+            return other._mul(self).simplify()
+        else:
+            raise NotImplementedError(
+                f"Don't know how to multiply {type(other)} * Expression"
+            )
 
     def inv(self):
         """Return the inverse of the expression."""
@@ -518,12 +536,29 @@ class Expression(GroupElement):
         return self._mul(other.inv())
 
     # frontend division (with simplify step)
-    def __truediv__(self, other: "Expression"):
+    # self / other
+    def __truediv__(self, other: Union["Expression", str]) -> "Expression":
         """Divide the expression by another expression, with simplification."""
+        if isinstance(other, str):
+            other = Expression(other, self.group)
         if isinstance(other, Expression):
             return self._mul(other.inv()).simplify()
         else:
-            return NotImplemented
+            raise NotImplementedError(
+                f"Don't know how to divide Expression / {type(other)}"
+            )
+
+    # other / self
+    def __rtruediv__(self, other: Union["Expression", str]) -> "Expression":
+        """Divide another expression by this expression, with simplification."""
+        if isinstance(other, str):
+            other = Expression(other, self.group)
+        if isinstance(other, Expression):
+            return other._mul(self.inv()).simplify()
+        else:
+            raise NotImplementedError(
+                f"Don't know how to divide {type(other)} / Expression"
+            )
 
     def __pow__(self, other: int):
         """Raise the expression to the power of an integer."""

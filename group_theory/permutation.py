@@ -186,21 +186,30 @@ class Permutation(GroupElement):
             list(reversed([list(reversed(x)) for x in self.cycle])), self.group
         ).simplify()
 
-    def __mul__(self, other: "Permutation"):  # for Permutation * Permutation
-        if isinstance(other, Permutation):
-            cycle = self.cycle + other.cycle
-            return Permutation(cycle, self.group).simplify()
-        else:
-            return NotImplemented
+    def __mul__(self, other: Any) -> "Permutation":
+        if not isinstance(other, Permutation):
+            other = Permutation(other, self.group)
+        cycle = self.cycle + other.cycle
+        return Permutation(cycle, self.group).simplify()
+
+    def __rmul__(self, other: Any):  # for Permutation * Permutation
+        if not isinstance(other, Permutation):
+            other = Permutation(other, self.group)
+        cycle = other.cycle + self.cycle
+        return Permutation(cycle, self.group).simplify()
 
     def __hash__(self):
         return hash(str(self))
 
-    def __truediv__(self, other):
-        if isinstance(other, Permutation):
-            return self * other.inv()
-        else:
-            return NotImplemented
+    def __truediv__(self, other: Any) -> "Permutation":
+        if not isinstance(other, Permutation):
+            other = Permutation(other, self.group)
+        return self * other.inv()
+
+    def __rtruediv__(self, other: Any) -> "Permutation":
+        if not isinstance(other, Permutation):
+            other = Permutation(other, self.group)
+        return other * self.inv()
 
     def __eq__(self, other: Any):
         if not isinstance(other, Permutation):
