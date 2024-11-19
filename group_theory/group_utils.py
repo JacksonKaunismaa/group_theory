@@ -25,6 +25,8 @@ def _default_groups(group_name, n, generate):
     )
 
     if group_name in ["symmetric", "alternating"]:
+        if generate is None:
+            generate = False
         return permutation.PermutationGroup(
             n=n, generate=generate, name=f"{group_name} {n}"
         )
@@ -41,6 +43,9 @@ def _default_groups(group_name, n, generate):
             raise ValueError(
                 f"n must be a power of 2 for {group_name}" f"group, it was {n} instead"
             )
+
+        if generate is None:
+            generate = True
 
         return symbolic.SymbolicGroup(
             rules=rules_d[group_name], generate=generate, name=f"{group_name} {n}"

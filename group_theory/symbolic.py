@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Union, List, Optional
+from typing import Any, Union, List, Optional
 
 # import copy
 
@@ -12,12 +12,22 @@ IDENTITY_SYMBOLS = ["e", "1"]
 
 
 class SymbolicGroup(Group):
+    """
+    A class representing a symbolic group, inheriting from the Group class.
+
+    Attributes:
+        singleton_rules (dict): Map symbols -> orbit size.
+        general_rules (defaultdict(list)): Map pattern_len -> list of (pattern, result) tuples to simplify expressions.
+        symbols (set): A set of symbols used in the group.
+        simplify_cache (dict): A cache to speed up simplification.
+    """
+
     def __init__(
         self,
         *elems: "Expression",
         rules: List[str],
         name: str = "",
-        generate: bool = False,
+        generate: bool = True,
         verbose: bool = False,
     ):
         super().__init__(*elems, name=name, verbose=verbose)
@@ -77,9 +87,16 @@ class SymbolicGroup(Group):
         return list(self.symbols)
 
 
-class Term(
-    GroupElement
-):  # a single instance of something like "r^3", r is the sym, 3 is the exp
+class Term(GroupElement):
+    """
+    Represents a single instance of a group element with a symbol and an exponent, such as "r^3".
+
+    Attributes:
+        sym (str | None): The symbol of the term. None represents the identity element.
+        exp (int): The exponent of the term.
+        cyclic_rule (Optional[int]): The number of times the symbol can be repeated before it wraps around.
+    """
+
     def __init__(
         self,
         sym: str | None,
@@ -99,20 +116,24 @@ class Term(
         self.simplify()
 
     def simplify(self):
+        """Apply cyclic rule, if applicable, and simplify the term."""
         if self.cyclic_rule:
-            if self.exp < 0:
-                self.exp += self.cyclic_rule * (1 + (-self.exp) // self.cyclic_rule)
             self.exp = self.exp % self.cyclic_rule
-        if self.exp == 0:
-            self.sym = None  # make self identity, not great since now we have 2 implementations of identity() (other is in Group)
-        return self
+            if self.exp < 0:
+                self.exp += self.cyclic_rule
 
-    def _parse(self, equation: str, initial: bool):
-        pass
+        # i.e. identity, bad since now we have 2 implementations of identity()
+        if self.exp == 0:
+            self.sym = None
+        return self
 
     @staticmethod
     def identity():
         return Term(None, 0)
+
+    # GroupElements should implement this, but we never directly parse Terms
+    def _parse(self, equation: str, initial: bool):
+        pass
 
     @property
     def is_identity(self):
@@ -208,70 +229,6 @@ class Expression(GroupElement):
     Attributes:
         group (SymbolicGroup): The group to which the expression belongs.
         expr (List[Term]): The list of terms in the expression.
-
-    Methods:
-        __init__(expr, group, initial=False):
-            Initializes an Expression object.
-
-        _parse(equation, initial):
-            Parses a string equation into a list of Term objects.
-
-        windows_match(window, pattern):
-            Checks if a window of terms matches a given pattern.
-
-        tprint(*args, **kwargs):
-            Prints messages if the group's verbose attribute is True.
-
-        simplify(max_iters=200):
-            Simplifies the expression by applying group rules.
-
-        _combine_like_terms(n):
-            Combines like terms in the expression starting from a given position.
-
-        _filter_identity(expr=None):
-            Removes identity terms from the expression or a list of terms.
-
-        is_identity:
-            Checks if the expression is an identity expression.
-
-        __getitem__(idx):
-            Gets the term at the specified index.
-
-        __len__():
-            Returns the number of terms in the expression.
-
-        _concat(left, right):
-            Concatenates two expressions or lists of terms without combining like terms.
-
-        _mul(other):
-            Multiplies the expression with another expression, term, or list of terms.
-
-        __mul__(other):
-            Multiplies the expression with another expression or term and simplifies the result.
-
-        inv():
-            Returns the inverse of the expression.
-
-        _truediv(other):
-            Divides the expression by another expression or term without simplifying.
-
-        __truediv__(other):
-            Divides the expression by another expression or term and simplifies the result.
-
-        __pow__(other):
-            Raises the expression to the power of an integer.
-
-        __eq__(other):
-            Checks if two expressions are equal.
-
-        __repr__():
-            Returns a string representation of the expression.
-
-        __hash__():
-            Returns the hash of the expression.
-
-        simpler_heuristic(other):
-            Determines if the current expression is simpler than another expression based on heuristic rules.
     """
 
     def __init__(
@@ -467,16 +424,14 @@ class Expression(GroupElement):
             # print("looking at", term1, curr_term, term2)
             curr_term = term1._mul(curr_term)  #  * term2
             curr_term = curr_term._mul(term2)
-            if isinstance(
-                curr_term, list
-            ):  # in Term*Term multiplication list => Terms couldn't be combined
+            # in Term*Term multiplication, list => Terms couldn't be combined
+            if isinstance(curr_term, list):
                 break
         else:  # at this point curr_term will be a Term, since we didn't break out
             curr_term = [curr_term]
         curr_term = self.filter_identity(curr_term)
-        new_expr = curr_term._concat(
-            self.expr[: n - i - 1], self.expr[n + i + 1 :]
-        )  # self.expr[:n-i-1] * curr_term *  self.expr[n+i+1:]
+        # self.expr[:n-i-1] * curr_term *  self.expr[n+i+1:]
+        new_expr = curr_term._concat(self.expr[: n - i - 1], self.expr[n + i + 1 :])
 
         if isinstance(new_expr, Expression):
             return new_expr
@@ -506,13 +461,19 @@ class Expression(GroupElement):
     def __len__(self):
         return len(self.expr)
 
-    # the pupose of this methods is to multiply 2 Expressions or lists such that combine_like_terms
-    # isn't called. Used to avoid infinite loops, but probably shouldn't be used by clients. Should only use
-    # when you know the combining like terms won't do anything
-    # for multiplying {list,Expression} * Expression * {list, Expression}
     def _concat(
         self, left: Union[list, "Expression"], right: Union[list, "Expression"]
     ) -> "Expression":
+        """
+        Combine a left and right expression with current expression, without simplifying.
+
+        Example:
+            If the current expression is "a b c", and the left and right
+            operands are "x y" and "p q r", respectively, the result of
+            this method will be "x y a b c p q r".
+
+        The only simplification it does is to filter out identity terms.
+        """
         if isinstance(left, list):
             left = Expression(left, self.group)
         if isinstance(right, list):
@@ -521,15 +482,16 @@ class Expression(GroupElement):
             left.expr + self.expr + right.expr, self.group
         ).filter_identity()
 
-    # def copy(self):  # need deepcopy since its a list
-    #     # return Expression(copy.deepcopy(self.expr), self.group)
-    #     return Expression(self.expr.copy(), self.group)
+    def _mul(self, other: Union["Expression", list, Term]) -> "Expression":
+        """
+        Combine an expression with another expression, combining like terms.
 
-    def _mul(self, other) -> "Expression":  # for Expression * {Expression, Term}
-        """Combine expressions without calling .simplify().
+        Example:
+            If the current expression is "a b c", and the other expression
+            is "c b x", the result of this method will be "a b c^2 b x".
 
         This is used to avoid infinite recursion when multiplying expressions.
-        Still combines like terms between the end of self and the start of other,
+        Combines like terms between the end of self and the start of other,
         but doesn't simplify the result.
         """
         if isinstance(other, Expression):
@@ -545,43 +507,47 @@ class Expression(GroupElement):
         new_expr = Expression(self.expr + other_expr, self.group)
         return new_expr.combine_like_terms(len(self))
 
-    # frontend of multiplication, so that simplification is done automatically
-    def __mul__(self, other):  # Expression * {Expression, Term}
-        if isinstance(other, (Expression, Term)):
+    def __mul__(self, other: "Expression"):
+        """Multiply with full simplification."""
+        if isinstance(other, Expression):
             return self._mul(other).simplify()
         else:
             return NotImplemented
 
     def inv(self):
+        """Return the inverse of the expression."""
         if self.is_identity:
             return self
         return Expression([x.inv() for x in self.expr[::-1]], self.group)
 
-    # backend of division (no simplify step)
-    def _truediv(self, other):
+    def _truediv(self, other: "Expression") -> "Expression":
+        """Divide the expression by another expression, without simplifying."""
         return self._mul(other.inv())
 
     # frontend division (with simplify step)
-    def __truediv__(self, other):
-        if isinstance(other, (Term, Expression)):
+    def __truediv__(self, other: "Expression"):
+        """Divide the expression by another expression, with simplification."""
+        if isinstance(other, Expression):
             return self._mul(other.inv()).simplify()
         else:
             return NotImplemented
 
-    def __pow__(self, other):
+    def __pow__(self, other: int):
+        """Raise the expression to the power of an integer."""
         curr_expr = self.group.identity_expr()
         for _ in range(other):
             curr_expr *= self
         return curr_expr
 
-    def __eq__(self, other):  # need to check len because zip truncates elements
-        try:
-            return len(self) == len(other) and all(
-                t1 == t2 for t1, t2 in zip(self.expr, other.expr)
+    def __eq__(self, other: Any):
+        if not isinstance(other, Expression):
+            raise NotImplementedError(
+                f"Don't know how to compare Expression == {type(other)}"
             )
-        except TypeError:
-            print(self, type(self), "######", other, type(other))
-            raise
+        # need to check len because zip truncates elements
+        return len(self) == len(other) and all(
+            t1 == t2 for t1, t2 in zip(self.expr, other.expr)
+        )
 
     def __repr__(self):
         return " ".join([str(t) for t in self.expr])

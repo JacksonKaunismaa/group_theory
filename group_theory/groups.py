@@ -121,35 +121,31 @@ class Group(set):
     # Properties
 
     @property
-    def is_perm_group(self):
-        return self.n is not None  # permutation groups have n defined, others don't
-
-    @property
     def has_elems(self):
         return len(self) > 0
 
-    def is_subgroup(self, verbose=True):
+    def is_subgroup(self):
         if not self.has_elems:
             return False
         for elem1 in self:
             for elem2 in self:
                 if elem1 / elem2 not in self:
-                    if verbose:
+                    if self.verbose:
                         print(
                             f"{elem1=}, {elem2=} generates {elem1/elem2} not in subgroup"
                         )
                     return False
         return True
 
-    def is_normal(self, subgroup, verbose=False):
-        if not subgroup.is_subgroup(verbose=verbose):
-            if verbose:
+    def is_normal(self, subgroup: "Group"):
+        if not subgroup.is_subgroup():
+            if self.verbose:
                 print("not even a subgroup")
             return False
         for h in subgroup:
             for g in self:
                 if g * h / g not in subgroup:
-                    if verbose:
+                    if self.verbose:
                         print(
                             f"group_elem={g}, subgroup_elem={h} generates {g*h/g} not in subgroup"
                         )
