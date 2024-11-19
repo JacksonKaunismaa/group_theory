@@ -10,6 +10,8 @@ from .groups import Group
 
 
 IDENTITY_SYMBOLS = ["e", "1"]
+# representations of Expression that are allowed for permissive multiplication
+ExprFormat = Union[str, List["Term"], "Expression"]
 
 
 class SymbolicGroup(Group, Generic[T]):
@@ -82,13 +84,13 @@ class SymbolicGroup(Group, Generic[T]):
     def identity_expr(self):
         return Expression([Term.identity()], self)
 
-    def _parse(self, equation: str, initial: bool = False) -> "Expression":
+    def _parse(self, equation: ExprFormat, initial: bool = False) -> "Expression":
         return Expression(equation, self, initial=initial)
 
     def generators(self):
         return list(self.symbols)
 
-    def subgroup(self, *elems: Union["Expression", Any]) -> "SymbolicGroup":
+    def subgroup(self, *elems: ExprFormat) -> "SymbolicGroup":
         """Create a subgroup with the given elements."""
         expr_elems = self.evaluates(*elems)
         group = SymbolicGroup(
@@ -157,7 +159,9 @@ class Term:  # (GroupElement):
     # Expression is returned if its Term*Expression
     # Term is returned if its Term*Term and the terms could be combined
     # List[Term] is returned if its Term*Term and the terms couldn't be combined
-    def _mul(self, other) -> Union["Expression", "Term", List["Term"]]:
+    def _mul(
+        self, other: Union["Expression", "Term"]
+    ) -> Union["Expression", "Term", List["Term"]]:
         if self.is_identity:
             return other
 
@@ -225,12 +229,12 @@ class Expression(GroupElement):
         expr (List[Term]): The list of terms in the expression.
     """
 
-    def __init__(
-        self, expr: Union[List[Term], str], group: "SymbolicGroup", initial=False
-    ):
+    def __init__(self, expr: ExprFormat, group: "SymbolicGroup", initial=False):
         self.group = group
         if isinstance(expr, str):  # parse it if its a string
             expr = self._parse(expr, initial=initial)
+        elif isinstance(expr, Expression):
+            expr = expr.expr.copy()
         self.expr = expr
         if not self.expr:
             self.expr = [
@@ -458,7 +462,9 @@ class Expression(GroupElement):
         return len(self.expr)
 
     def _concat(
-        self, left: Union[list, "Expression"], right: Union[list, "Expression"]
+        self,
+        left: Union[list[Term], "Expression"],
+        right: Union[list[Term], "Expression"],
     ) -> "Expression":
         """
         Combine a left and right expression with current expression, without simplifying.
@@ -478,7 +484,7 @@ class Expression(GroupElement):
             left.expr + self.expr + right.expr, self.group
         ).filter_identity()
 
-    def _mul(self, other: Union["Expression", list, Term]) -> "Expression":
+    def _mul(self, other: Union["Expression", list[Term], Term]) -> "Expression":
         """
         Combine an expression with another expression, combining like terms.
 
@@ -503,7 +509,7 @@ class Expression(GroupElement):
         new_expr = Expression(self.expr + other_expr, self.group)
         return new_expr.combine_like_terms(len(self))
 
-    def __mul__(self, other: Union["Expression", str]) -> "Expression":
+    def __mul__(self, other: ExprFormat) -> "Expression":
         """Multiply with full simplification."""
         if isinstance(other, str):
             other = Expression(other, self.group)
@@ -514,7 +520,7 @@ class Expression(GroupElement):
                 f"Don't know how to multiply Expression * {type(other)}"
             )
 
-    def __rmul__(self, other: Union["Expression", str]) -> "Expression":
+    def __rmul__(self, other: ExprFormat) -> "Expression":
         """Multiply with full simplification."""
         if isinstance(other, str):
             other = Expression(other, self.group)
@@ -537,7 +543,7 @@ class Expression(GroupElement):
 
     # frontend division (with simplify step)
     # self / other
-    def __truediv__(self, other: Union["Expression", str]) -> "Expression":
+    def __truediv__(self, other: ExprFormat) -> "Expression":
         """Divide the expression by another expression, with simplification."""
         if isinstance(other, str):
             other = Expression(other, self.group)
@@ -549,7 +555,7 @@ class Expression(GroupElement):
             )
 
     # other / self
-    def __rtruediv__(self, other: Union["Expression", str]) -> "Expression":
+    def __rtruediv__(self, other: ExprFormat) -> "Expression":
         """Divide another expression by this expression, with simplification."""
         if isinstance(other, str):
             other = Expression(other, self.group)

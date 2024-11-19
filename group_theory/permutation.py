@@ -5,9 +5,20 @@ from typing import Any, Sequence, Union, List
 from .group_element import GroupElement
 from .groups import Group
 
+# representations of Permutation that are allowed for permissive multiplication
+PermFormat = Union[Sequence[int], List[List[int]], str, "Permutation"]
 
-# a Permutation should essentially be equivalent to an Expression (though in some sense it also only ever has a single Term)
+
 class PermutationGroup(Group):
+    """
+    A class representing a permutation group, which is a group consisting of permutations.
+
+    Attributes:
+        n (int): The degree of the permutation group.
+        name (str): The name of the permutation group.
+        verbose (bool): If True, enables verbose output.
+    """
+
     def __init__(
         self,
         *elems: "Permutation",
@@ -23,7 +34,7 @@ class PermutationGroup(Group):
 
     def _generate_all(self):
         new_elems = [
-            Permutation(pt, self).simplify()
+            Permutation(pt, self, True).simplify()
             for pt in itertools.permutations(list(range(self.n)))
         ]
 
@@ -39,16 +50,16 @@ class PermutationGroup(Group):
         return False
 
     def identity_expr(self):
-        return Permutation([], self)
+        return Permutation([], self, True)
 
-    def _parse(self, equation: str, initial=False) -> "Permutation":
+    def _parse(self, equation: PermFormat, initial=False) -> "Permutation":
         return Permutation(equation, self)
 
     def generators(self):
         # list of adjacent transpositions
-        return [Permutation([[a, a + 1]], self) for a in range(0, self.n - 1)]
+        return [Permutation([[a, a + 1]], self, True) for a in range(0, self.n - 1)]
 
-    def subgroup(self, *elems: Any) -> "PermutationGroup":
+    def subgroup(self, *elems: PermFormat) -> "PermutationGroup":
         perm_elems = self.evaluates(*elems)
         group = PermutationGroup(
             *perm_elems, n=self.n, name=self.name, verbose=self.verbose, generate=False
@@ -58,10 +69,19 @@ class PermutationGroup(Group):
 
 
 class Permutation(GroupElement):
+    """
+    Represents a permutation in a permutation group.
+
+    Attributes:
+        group (PermutationGroup): The group to which this permutation belongs.
+        cycle (List[List[int]]): The cycle notation of the permutation.
+    """
+
     def __init__(
         self,
-        notation: Union[Sequence[int], List[List[int]], str],
+        notation: PermFormat,
         group: "PermutationGroup",
+        is_valid: bool = False,
     ):
         # notation must be one of cycle notation or result notation
         # cycle notation is identified as a list[list[int]], result notation is list[int]
@@ -69,11 +89,14 @@ class Permutation(GroupElement):
 
         if isinstance(notation, str):
             self.cycle = self._parse(notation)
+        elif isinstance(notation, Permutation):
+            self.cycle = notation.cycle
         elif notation and isinstance(notation[0], int):
             self.parse_result_notation(notation)  # type: ignore
         elif notation and isinstance(notation[0], list):
             self.cycle: List[List[int]] = notation
-            self.validate()
+            if not is_valid:
+                self.validate()
         elif not notation:
             self.cycle = []
         else:
@@ -189,43 +212,42 @@ class Permutation(GroupElement):
     def _filter_identity(self, cycle=None):
         if cycle is None:
             cycle = self.cycle
-        return Permutation([x for x in cycle if len(x) > 1], self.group)
+        return Permutation([x for x in cycle if len(x) > 1], self.group, True)
 
     def inv(self):
         return Permutation(
-            list(reversed([list(reversed(x)) for x in self.cycle])), self.group
+            list(reversed([list(reversed(x)) for x in self.cycle])), self.group, True
         ).simplify()
 
-    def __mul__(self, other: Any) -> "Permutation":
+    def __mul__(self, other: PermFormat) -> "Permutation":
         if not isinstance(other, Permutation):
             other = Permutation(other, self.group)
         cycle = self.cycle + other.cycle
-        return Permutation(cycle, self.group).simplify()
+        return Permutation(cycle, self.group, True).simplify()
 
-    def __rmul__(self, other: Any):  # for Permutation * Permutation
+    def __rmul__(self, other: PermFormat):  # for Permutation * Permutation
         if not isinstance(other, Permutation):
             other = Permutation(other, self.group)
         cycle = other.cycle + self.cycle
-        return Permutation(cycle, self.group).simplify()
+        return Permutation(cycle, self.group, True).simplify()
 
     def __hash__(self):
         return hash(str(self))
 
-    def __truediv__(self, other: Any) -> "Permutation":
+    def __truediv__(self, other: PermFormat) -> "Permutation":
         if not isinstance(other, Permutation):
             other = Permutation(other, self.group)
         return self * other.inv()
 
-    def __rtruediv__(self, other: Any) -> "Permutation":
+    def __rtruediv__(self, other: PermFormat) -> "Permutation":
         if not isinstance(other, Permutation):
             other = Permutation(other, self.group)
         return other * self.inv()
 
-    def __eq__(self, other: Any):
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Permutation):
             # try to convert to Permutation
             other = Permutation(other, self.group)
-        print("harlcog", other, self)
         return str(self) == str(other)
 
     def simpler_heuristic(self, other: "Permutation") -> bool:
