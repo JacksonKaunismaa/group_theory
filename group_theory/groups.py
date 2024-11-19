@@ -176,7 +176,7 @@ class Group(set, Generic[T]):
         else:
             return NotImplemented
 
-    def __truediv__(self, other):  # ie. Group / {Term, Permutation}
+    def __truediv__(self, other):
         if isinstance(other, Group):
             if not self._same_group_type(other):
                 raise ValueError(
@@ -200,13 +200,10 @@ class Group(set, Generic[T]):
             quotient.quotient_map = quotient_map
             return quotient
 
-        elif isinstance(other, GroupElement):
-            return self * other.inv()
-        elif isinstance(other, list) and isinstance(other[0], str):
-            elems = self.generate(*other)
-            return self / elems
-        else:
-            return NotImplemented
+        # if its something other than a Group, try promoting to a GroupElement
+        if not isinstance(other, GroupElement):
+            other = self.evaluate(other)
+        return self * other.inv()
 
     def __and__(self, other):  # make sure to cast to a Group object
         return self.subgroup(*super().__and__(other))

@@ -5,8 +5,9 @@ from typing import Any, Sequence, Union, List
 from .group_element import GroupElement
 from .groups import Group
 
-# representations of Permutation that are allowed for permissive multiplication
-PermFormat = Union[Sequence[int], List[List[int]], str, "Permutation"]
+# the types that we can try to parse as Permutation in permissive multiplication
+PermissiveFormat = Union[Sequence[int], List[List[int]], str]
+PermutationFormat = Union[PermissiveFormat, "Permutation"]
 
 
 class PermutationGroup(Group):
@@ -52,14 +53,14 @@ class PermutationGroup(Group):
     def identity_expr(self):
         return Permutation([], self, True)
 
-    def _parse(self, equation: PermFormat, initial=False) -> "Permutation":
+    def _parse(self, equation: PermissiveFormat, initial=False) -> "Permutation":
         return Permutation(equation, self)
 
     def generators(self):
         # list of adjacent transpositions
         return [Permutation([[a, a + 1]], self, True) for a in range(0, self.n - 1)]
 
-    def subgroup(self, *elems: PermFormat) -> "PermutationGroup":
+    def subgroup(self, *elems: PermutationFormat) -> "PermutationGroup":
         perm_elems = self.evaluates(*elems)
         group = PermutationGroup(
             *perm_elems, n=self.n, name=self.name, verbose=self.verbose, generate=False
@@ -79,7 +80,7 @@ class Permutation(GroupElement):
 
     def __init__(
         self,
-        notation: PermFormat,
+        notation: PermissiveFormat,
         group: "PermutationGroup",
         is_valid: bool = False,
     ):
@@ -89,8 +90,6 @@ class Permutation(GroupElement):
 
         if isinstance(notation, str):
             self.cycle = self._parse(notation)
-        elif isinstance(notation, Permutation):
-            self.cycle = notation.cycle
         elif notation and isinstance(notation[0], int):
             self.parse_result_notation(notation)  # type: ignore
         elif notation and isinstance(notation[0], list):
@@ -100,7 +99,7 @@ class Permutation(GroupElement):
         elif not notation:
             self.cycle = []
         else:
-            raise ValueError(f"Invalid notation {notation}")
+            raise TypeError(f"Invalid notation {type(notation)}")
 
     def validate(self):
         for term in self.cycle:
@@ -219,36 +218,61 @@ class Permutation(GroupElement):
             list(reversed([list(reversed(x)) for x in self.cycle])), self.group, True
         ).simplify()
 
-    def __mul__(self, other: PermFormat) -> "Permutation":
-        if not isinstance(other, Permutation):
-            other = Permutation(other, self.group)
-        cycle = self.cycle + other.cycle
-        return Permutation(cycle, self.group, True).simplify()
+    def permissive(self, other: PermutationFormat) -> "Permutation":
+        """
+        Try to promote expressions to Permutation for permissive multiplication.
 
-    def __rmul__(self, other: PermFormat):  # for Permutation * Permutation
+        1. If not an Permutation, try converting Permutation
+        2. If this fails, __init__ will throw a TypeError
+        3. Otherwise, return the Permutation
+        """
         if not isinstance(other, Permutation):
-            other = Permutation(other, self.group)
-        cycle = other.cycle + self.cycle
-        return Permutation(cycle, self.group, True).simplify()
+            other = Permutation(other, self.group)  # type: ignore
+        return other
+
+    def __mul__(self, other: PermutationFormat) -> "Permutation":
+        # if not isinstance(other, Permutation):
+        #     other = Permutation(other, self.group)
+        # cycle = self.cycle + other.cycle
+        # return Permutation(cycle, self.group, True).simplify()
+        try:
+            other = self.permissive(other)
+            cycle = self.cycle + other.cycle
+            return Permutation(cycle, self.group, True).simplify()
+        except TypeError:
+            return NotImplemented
+
+    def __rmul__(self, other: PermutationFormat):
+        try:
+            other = self.permissive(other)
+            cycle = other.cycle + self.cycle
+            return Permutation(cycle, self.group, True).simplify()
+        except TypeError:
+            return NotImplemented
 
     def __hash__(self):
         return hash(str(self))
 
-    def __truediv__(self, other: PermFormat) -> "Permutation":
-        if not isinstance(other, Permutation):
-            other = Permutation(other, self.group)
-        return self * other.inv()
+    def __truediv__(self, other: PermutationFormat) -> "Permutation":
+        try:
+            other = self.permissive(other)
+            return self * other.inv()
+        except TypeError:
+            return NotImplemented
 
-    def __rtruediv__(self, other: PermFormat) -> "Permutation":
-        if not isinstance(other, Permutation):
-            other = Permutation(other, self.group)
-        return other * self.inv()
+    def __rtruediv__(self, other: PermutationFormat) -> "Permutation":
+        try:
+            other = self.permissive(other)
+            return other * self.inv()
+        except TypeError:
+            return NotImplemented
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Permutation):
-            # try to convert to Permutation
-            other = Permutation(other, self.group)
-        return str(self) == str(other)
+        try:
+            other = self.permissive(other)
+            return str(self) == str(other)
+        except TypeError:
+            return NotImplemented
 
     def simpler_heuristic(self, other: "Permutation") -> bool:
         identity_check = super().simpler_heuristic(other)

@@ -10,8 +10,9 @@ from .groups import Group
 
 
 IDENTITY_SYMBOLS = ["e", "1"]
-# representations of Expression that are allowed for permissive multiplication
-ExprFormat = Union[str, List["Term"], "Expression"]
+# the types that we can try to parse as Expressions in permissive multiplication
+PermissiveFormat = Union[str, List["Term"]]
+ExpressionFormat = Union[PermissiveFormat, "Expression"]
 
 
 class SymbolicGroup(Group, Generic[T]):
@@ -84,13 +85,13 @@ class SymbolicGroup(Group, Generic[T]):
     def identity_expr(self):
         return Expression([Term.identity()], self)
 
-    def _parse(self, equation: ExprFormat, initial: bool = False) -> "Expression":
+    def _parse(self, equation: PermissiveFormat, initial: bool = False) -> "Expression":
         return Expression(equation, self, initial=initial)
 
     def generators(self):
         return list(self.symbols)
 
-    def subgroup(self, *elems: ExprFormat) -> "SymbolicGroup":
+    def subgroup(self, *elems: ExpressionFormat) -> "SymbolicGroup":
         """Create a subgroup with the given elements."""
         expr_elems = self.evaluates(*elems)
         group = SymbolicGroup(
@@ -226,20 +227,21 @@ class Expression(GroupElement):
 
     Attributes:
         group (SymbolicGroup): The group to which the expression belongs.
-        expr (List[Term]): The list of terms in the expression.
+        expr (PermissiveFormat): The list of terms in the expression.
     """
 
-    def __init__(self, expr: ExprFormat, group: "SymbolicGroup", initial=False):
+    def __init__(self, expr: PermissiveFormat, group: "SymbolicGroup", initial=False):
         self.group = group
         if isinstance(expr, str):  # parse it if its a string
             expr = self._parse(expr, initial=initial)
-        elif isinstance(expr, Expression):
-            expr = expr.expr.copy()
-        self.expr = expr
-        if not self.expr:
-            self.expr = [
-                Term.identity()
-            ]  # allowing empty expresions makes things buggy
+
+        if isinstance(expr, list) and not expr:
+            # allowing empty expresions makes things buggy
+            self.expr = [Term.identity()]
+        elif isinstance(expr, list) and isinstance(expr[0], Term):
+            self.expr = expr
+        else:
+            raise TypeError(f"Can't parse {type(expr)} as an Expression")
 
     def _parse(self, equation: str, initial: bool) -> List[Term]:
         # initial=True when parsing the group rules themselves, since we don't know
@@ -484,7 +486,7 @@ class Expression(GroupElement):
             left.expr + self.expr + right.expr, self.group
         ).filter_identity()
 
-    def _mul(self, other: Union["Expression", list[Term], Term]) -> "Expression":
+    def _mul(self, other: Union[ExpressionFormat, "Term"]) -> "Expression":
         """
         Combine an expression with another expression, combining like terms.
 
@@ -509,27 +511,33 @@ class Expression(GroupElement):
         new_expr = Expression(self.expr + other_expr, self.group)
         return new_expr.combine_like_terms(len(self))
 
-    def __mul__(self, other: ExprFormat) -> "Expression":
-        """Multiply with full simplification."""
-        if isinstance(other, str):
-            other = Expression(other, self.group)
-        if isinstance(other, Expression):
-            return self._mul(other).simplify()
-        else:
-            raise NotImplementedError(
-                f"Don't know how to multiply Expression * {type(other)}"
-            )
+    def permissive(self, other: ExpressionFormat) -> "Expression":
+        """
+        Try to promote expressions to Expression for permissive multiplication.
 
-    def __rmul__(self, other: ExprFormat) -> "Expression":
+        1. If not an Expression, try converting Expression
+        2. If this fails, __init__ will throw a TypeError
+        3. Otherwise, return the Expression
+        """
+        if not isinstance(other, Expression):
+            other = Expression(other, self.group)  # type: ignore
+        return other
+
+    def __mul__(self, other: ExpressionFormat) -> "Expression":
         """Multiply with full simplification."""
-        if isinstance(other, str):
-            other = Expression(other, self.group)
-        if isinstance(other, Expression):
+        try:
+            other = self.permissive(other)
+            return self._mul(other).simplify()
+        except TypeError:
+            return NotImplemented
+
+    def __rmul__(self, other: ExpressionFormat) -> "Expression":
+        """Multiply with full simplification."""
+        try:
+            other = self.permissive(other)
             return other._mul(self).simplify()
-        else:
-            raise NotImplementedError(
-                f"Don't know how to multiply {type(other)} * Expression"
-            )
+        except TypeError:
+            return NotImplemented
 
     def inv(self):
         """Return the inverse of the expression."""
@@ -543,28 +551,22 @@ class Expression(GroupElement):
 
     # frontend division (with simplify step)
     # self / other
-    def __truediv__(self, other: ExprFormat) -> "Expression":
+    def __truediv__(self, other: ExpressionFormat) -> "Expression":
         """Divide the expression by another expression, with simplification."""
-        if isinstance(other, str):
-            other = Expression(other, self.group)
-        if isinstance(other, Expression):
-            return self._mul(other.inv()).simplify()
-        else:
-            raise NotImplementedError(
-                f"Don't know how to divide Expression / {type(other)}"
-            )
+        try:
+            other = self.permissive(other)
+            return self._truediv(other).simplify()
+        except TypeError:
+            return NotImplemented
 
     # other / self
-    def __rtruediv__(self, other: ExprFormat) -> "Expression":
+    def __rtruediv__(self, other: ExpressionFormat) -> "Expression":
         """Divide another expression by this expression, with simplification."""
-        if isinstance(other, str):
-            other = Expression(other, self.group)
-        if isinstance(other, Expression):
+        try:
+            other = self.permissive(other)
             return other._mul(self.inv()).simplify()
-        else:
-            raise NotImplementedError(
-                f"Don't know how to divide {type(other)} / Expression"
-            )
+        except TypeError:
+            return NotImplemented
 
     def __pow__(self, other: int):
         """Raise the expression to the power of an integer."""
@@ -574,14 +576,13 @@ class Expression(GroupElement):
         return curr_expr
 
     def __eq__(self, other: Any):
-        if not isinstance(other, Expression):
-            # try to convert to Expression
-            other = Expression(other, self.group)
-
-        # need to check len because zip truncates elements
-        return len(self) == len(other) and all(
-            t1 == t2 for t1, t2 in zip(self.expr, other.expr)
-        )
+        try:
+            other_expr = self.permissive(other)
+            return len(self) == len(other_expr) and all(
+                t1 == t2 for t1, t2 in zip(self.expr, other_expr.expr)
+            )
+        except TypeError:
+            return NotImplemented
 
     def __repr__(self):
         return " ".join([str(t) for t in self.expr])
