@@ -6,11 +6,11 @@ from .group_element import GroupElement
 from .groups import Group
 
 # the types that we can try to parse as Permutation in permissive multiplication
-PermissiveFormat = Union[Sequence[int], List[List[int]], str]
-PermutationFormat = Union[PermissiveFormat, "Permutation"]
+PermutationFormat = Union[Sequence[int], List[List[int]], str]
+PermissivePerm = Union[PermutationFormat, "Permutation"]
 
 
-class PermutationGroup(Group):
+class PermutationGroup(Group["Permutation"]):
     """
     A class representing a permutation group, which is a group consisting of permutations.
 
@@ -53,14 +53,14 @@ class PermutationGroup(Group):
     def identity_expr(self):
         return Permutation([], self, True)
 
-    def _parse(self, equation: PermissiveFormat, initial=False) -> "Permutation":
+    def parse(self, equation: PermutationFormat, initial=False) -> "Permutation":
         return Permutation(equation, self)
 
     def generators(self):
         # list of adjacent transpositions
         return [Permutation([[a, a + 1]], self, True) for a in range(0, self.n - 1)]
 
-    def subgroup(self, *elems: PermutationFormat) -> "PermutationGroup":
+    def subgroup(self, *elems: PermissivePerm) -> "PermutationGroup":
         perm_elems = self.evaluates(*elems)
         group = PermutationGroup(
             *perm_elems, n=self.n, name=self.name, verbose=self.verbose, generate=False
@@ -80,7 +80,7 @@ class Permutation(GroupElement):
 
     def __init__(
         self,
-        notation: PermissiveFormat,
+        notation: PermutationFormat,
         group: "PermutationGroup",
         is_valid: bool = False,
     ):
@@ -218,7 +218,7 @@ class Permutation(GroupElement):
             list(reversed([list(reversed(x)) for x in self.cycle])), self.group, True
         ).simplify()
 
-    def permissive(self, other: PermutationFormat) -> "Permutation":
+    def permissive(self, other: PermissivePerm) -> "Permutation":
         """
         Try to promote expressions to Permutation for permissive multiplication.
 
@@ -230,7 +230,7 @@ class Permutation(GroupElement):
             other = Permutation(other, self.group)  # type: ignore
         return other
 
-    def __mul__(self, other: PermutationFormat) -> "Permutation":
+    def __mul__(self, other: PermissivePerm) -> "Permutation":
         # if not isinstance(other, Permutation):
         #     other = Permutation(other, self.group)
         # cycle = self.cycle + other.cycle
@@ -242,7 +242,7 @@ class Permutation(GroupElement):
         except TypeError:
             return NotImplemented
 
-    def __rmul__(self, other: PermutationFormat):
+    def __rmul__(self, other: PermissivePerm):
         try:
             other = self.permissive(other)
             cycle = other.cycle + self.cycle
@@ -253,14 +253,14 @@ class Permutation(GroupElement):
     def __hash__(self):
         return hash(str(self))
 
-    def __truediv__(self, other: PermutationFormat) -> "Permutation":
+    def __truediv__(self, other: PermissivePerm) -> "Permutation":
         try:
             other = self.permissive(other)
             return self * other.inv()
         except TypeError:
             return NotImplemented
 
-    def __rtruediv__(self, other: PermutationFormat) -> "Permutation":
+    def __rtruediv__(self, other: PermissivePerm) -> "Permutation":
         try:
             other = self.permissive(other)
             return other * self.inv()
@@ -275,9 +275,8 @@ class Permutation(GroupElement):
             return NotImplemented
 
     def simpler_heuristic(self, other: "Permutation") -> bool:
-        identity_check = super().simpler_heuristic(other)
-        if identity_check is not None:
-            return identity_check
+        if self.is_identity or other.is_identity:
+            return self.is_identity
 
         sum_cycle1, sum_cycle2 = sum(self.cycle_type), sum(other.cycle_type)
         if sum_cycle1 < sum_cycle2:  # fewer terms are preferred

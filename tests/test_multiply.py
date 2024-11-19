@@ -22,12 +22,12 @@ def test_parsing(test_input, expected):
     d8_alt = SymbolicGroup(rules=["r8 = e", "f2 = e", "r f r = f", "f r = r7 f"])
     d8 = get_group("d8")
 
-    parsed_alt = d8_alt._parse(test_input)
-    parsed = d8._parse(test_input)
+    parsed_alt = d8_alt.parse(test_input)
+    parsed = d8.parse(test_input)
     assert parsed == parsed_alt
 
-    answer_alt = d8_alt._parse(expected)
-    answer = d8._parse(expected)
+    answer_alt = d8_alt.parse(expected)
+    answer = d8.parse(expected)
 
     evald = d8_alt.evaluate(test_input)
     evald_alt = d8.evaluate(test_input)

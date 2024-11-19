@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar, Generic
-
-T = TypeVar("T", bound="GroupElement")
+from typing import List, Self
 
 
-class GroupElement(ABC, Generic[T]):
+class GroupElement(ABC):
     """
     Abstract base class representing a group element in group theory.
 
@@ -12,41 +10,38 @@ class GroupElement(ABC, Generic[T]):
     -------
     _parse(equation: str, initial: bool) -> Any
         Parse a given equation string.
-    simplify() -> "GroupElement"
+    simplify() -> Self
         Simplify the group element.
-    inv() -> "GroupElement"
+    inv() -> Self
         Return the inverse of the group element.
-    __mul__(other: T) -> "GroupElement"
+    __mul__(other: Self) -> Self
         Define the multiplication operation with another group element.
-    __truediv__(other: T) -> "GroupElement"
+    __truediv__(other: Self) -> Self
         Define the division operation with another group element.
     is_identity -> bool
         Check if the group element is the identity element.
-    simpler_heuristic(other: T) -> bool
+    simpler_heuristic(other: Self) -> bool
         Determine if the current element is heuristically simpler than another element.
     """
 
     @abstractmethod
-    def _parse(self, equation: str, initial: bool) -> Any: ...
+    def _parse(self, equation: str, initial: bool) -> List: ...
 
     @abstractmethod
-    def simplify(self) -> T: ...
+    def simplify(self) -> Self: ...
 
     @abstractmethod
-    def inv(self) -> "GroupElement": ...
+    def inv(self) -> Self: ...
 
     @abstractmethod
-    def __mul__(self, other: T) -> "GroupElement": ...
+    def __mul__(self, other: Self) -> Self: ...
 
     @abstractmethod
-    def __truediv__(self, other: T) -> "GroupElement": ...
+    def __truediv__(self, other: Self) -> Self: ...
 
     @property
     @abstractmethod
     def is_identity(self) -> bool: ...
 
     @abstractmethod
-    def simpler_heuristic(self, other: T) -> bool:
-        """Returns True if term1 is heuristically "simpler" than term2"""
-        if self.is_identity or other.is_identity:
-            return self.is_identity
+    def simpler_heuristic(self, other: Self) -> bool: ...

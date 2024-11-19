@@ -1,21 +1,18 @@
 from collections import defaultdict
-from typing import Any, Generic, Union, List, Optional
-
-
-# import copy
+from typing import Any, Union, List, Optional
 
 from . import utils
-from .group_element import GroupElement, T
+from .group_element import GroupElement
 from .groups import Group
 
 
 IDENTITY_SYMBOLS = ["e", "1"]
 # the types that we can try to parse as Expressions in permissive multiplication
-PermissiveFormat = Union[str, List["Term"]]
-ExpressionFormat = Union[PermissiveFormat, "Expression"]
+ExpressionFormat = Union[str, List["Term"]]
+PermissiveExpr = Union[ExpressionFormat, "Expression"]
 
 
-class SymbolicGroup(Group, Generic[T]):
+class SymbolicGroup(Group["Expression"]):
     """
     A class representing a symbolic group, inheriting from the Group class.
 
@@ -44,8 +41,8 @@ class SymbolicGroup(Group, Generic[T]):
         if rules:
             for rule in rules:
                 pattern, result = rule.split("=")
-                pattern_expr = self._parse(pattern, initial=True)
-                result_expr = self._parse(result, initial=True)
+                pattern_expr = self.parse(pattern, initial=True)
+                result_expr = self.parse(result, initial=True)
 
                 self._add_syms(
                     pattern_expr, result_expr
@@ -85,13 +82,13 @@ class SymbolicGroup(Group, Generic[T]):
     def identity_expr(self):
         return Expression([Term.identity()], self)
 
-    def _parse(self, equation: PermissiveFormat, initial: bool = False) -> "Expression":
+    def parse(self, equation: ExpressionFormat, initial: bool = False) -> "Expression":
         return Expression(equation, self, initial=initial)
 
     def generators(self):
         return list(self.symbols)
 
-    def subgroup(self, *elems: ExpressionFormat) -> "SymbolicGroup":
+    def subgroup(self, *elems: PermissiveExpr) -> "SymbolicGroup":
         """Create a subgroup with the given elements."""
         expr_elems = self.evaluates(*elems)
         group = SymbolicGroup(
@@ -230,7 +227,7 @@ class Expression(GroupElement):
         expr (PermissiveFormat): The list of terms in the expression.
     """
 
-    def __init__(self, expr: PermissiveFormat, group: "SymbolicGroup", initial=False):
+    def __init__(self, expr: ExpressionFormat, group: "SymbolicGroup", initial=False):
         self.group = group
         if isinstance(expr, str):  # parse it if its a string
             expr = self._parse(expr, initial=initial)
@@ -486,7 +483,7 @@ class Expression(GroupElement):
             left.expr + self.expr + right.expr, self.group
         ).filter_identity()
 
-    def _mul(self, other: Union[ExpressionFormat, "Term"]) -> "Expression":
+    def _mul(self, other: Union[PermissiveExpr, "Term"]) -> "Expression":
         """
         Combine an expression with another expression, combining like terms.
 
@@ -511,7 +508,7 @@ class Expression(GroupElement):
         new_expr = Expression(self.expr + other_expr, self.group)
         return new_expr.combine_like_terms(len(self))
 
-    def permissive(self, other: ExpressionFormat) -> "Expression":
+    def permissive(self, other: PermissiveExpr) -> "Expression":
         """
         Try to promote expressions to Expression for permissive multiplication.
 
@@ -523,7 +520,7 @@ class Expression(GroupElement):
             other = Expression(other, self.group)  # type: ignore
         return other
 
-    def __mul__(self, other: ExpressionFormat) -> "Expression":
+    def __mul__(self, other: PermissiveExpr) -> "Expression":
         """Multiply with full simplification."""
         try:
             other = self.permissive(other)
@@ -531,7 +528,7 @@ class Expression(GroupElement):
         except TypeError:
             return NotImplemented
 
-    def __rmul__(self, other: ExpressionFormat) -> "Expression":
+    def __rmul__(self, other: PermissiveExpr) -> "Expression":
         """Multiply with full simplification."""
         try:
             other = self.permissive(other)
@@ -551,7 +548,7 @@ class Expression(GroupElement):
 
     # frontend division (with simplify step)
     # self / other
-    def __truediv__(self, other: ExpressionFormat) -> "Expression":
+    def __truediv__(self, other: PermissiveExpr) -> "Expression":
         """Divide the expression by another expression, with simplification."""
         try:
             other = self.permissive(other)
@@ -560,7 +557,7 @@ class Expression(GroupElement):
             return NotImplemented
 
     # other / self
-    def __rtruediv__(self, other: ExpressionFormat) -> "Expression":
+    def __rtruediv__(self, other: PermissiveExpr) -> "Expression":
         """Divide another expression by this expression, with simplification."""
         try:
             other = self.permissive(other)
@@ -591,9 +588,8 @@ class Expression(GroupElement):
         return hash(str(self))
 
     def simpler_heuristic(self, other: "Expression") -> bool:
-        identity_check = super().simpler_heuristic(other)
-        if identity_check is not None:
-            return identity_check
+        if self.is_identity or other.is_identity:
+            return self.is_identity
 
         if len(self) < len(other):  # shorter Expressions are better
             return True

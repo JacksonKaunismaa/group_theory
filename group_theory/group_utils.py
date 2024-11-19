@@ -1,6 +1,6 @@
 import re
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from . import permutation
 from . import symbolic
@@ -9,19 +9,18 @@ if TYPE_CHECKING:
     from .groups import Group
 
 
-def _default_groups(group_name, n, generate):
+def _default_groups(group_name: str, n: int, generate: Optional[bool]) -> "Group":
     # some definitions for common finite groups
     if group_name == "quaternion":
         group_name = "dicyclic"
-    # n //= 2  # use the group explorer and video notation (different from notation in the slides)
     # symbolic groups definition
     rules_d = dict(
         cyclic=[f"r{n} = e"],
-        dihedral=[f"r{n} = e", f"f2 = e", f"f r = r{n-1} f"],
-        dicyclic=[f"r{n} = e", f"s4 = e", f"s2 = r{n//2}", f"s r = r{n-1} s"],
-        semi_dihedral=[f"r{n} = e", f"s2 = e", f"s r = r{n//2-1} s"],
-        semi_abelian=[f"r{n} = e", f"s2 = e", f"s r = r{n//2+1} s"],
-        abelian=[f"r{n} = e", f"s2 = e", f"s r = r s"],
+        dihedral=[f"r{n} = e", "f2 = e", f"f r = r{n-1} f"],
+        dicyclic=[f"r{n} = e", "s4 = e", f"s2 = r{n//2}", f"s r = r{n-1} s"],
+        semi_dihedral=[f"r{n} = e", "s2 = e", f"s r = r{n//2-1} s"],
+        semi_abelian=[f"r{n} = e", "s2 = e", f"s r = r{n//2+1} s"],
+        abelian=[f"r{n} = e", "s2 = e", "s r = r s"],
     )
 
     if group_name in ["symmetric", "alternating"]:
@@ -60,9 +59,11 @@ def get_group(query: str, generate=None) -> "Group":
         get_group("dihedral 6")
         get_group("s4")
 
-    :param query: a string that represents a group
-    :param generate: whether to generate all group elements or not
-    :return: a Group object
+    Args:
+        query (str): The query string.
+        generate (bool): Whether to generate the group elements.
+    Returns:
+        Group: The group object.
     """
     extracted = re.search(r"([a-zA-Z]+) ?(\d+)", query.lower().strip())
     mappings = [
