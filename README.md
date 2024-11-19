@@ -37,7 +37,16 @@ d8 = get_group("dih 8")
 
 # Create a cyclic group of order 6
 c6 = get_group("cyc 6")
+
+# Custom symbolic group
+from group_theory.symbolic import SymbolicGroup
+group = SymbolicGroup(rules=["a8 = e", "b3 = e", "b a = a7 b2"], name='custom 8')
 ```
+
+When creating custom groups, you must be careful to specify rules that don't result
+in infinite groups or contradictions. `SymbolicGroup` does not automatically
+detect this, and if you attempt to generate all elements of such a group, it will
+run indefinitely.
 
 
 ### Group Operations
@@ -98,7 +107,7 @@ p_expr = s8.evaluate('(2 6 1)')  # (1 2 6)
 
 ### Manipulating expressions
 
-You can multiply, divide, and find inverses for both `Permutation` and `Expression`:
+You can multiply, divide, and find inverses for both `Permutation` and `Expression`.
 ```python
 x = d8.evaluate('r3 f')
 y = d8.evaluate('r2 f')
@@ -109,6 +118,24 @@ z.inv()  # r2
 x / y # equivalent to x * y.inv(), r
 ((x * y) / z)  # r3
 ```
+
+The library attempts to be as permissive as possible as to what types of
+operations are allowed, promoting strings and other types that could possibly be
+parsed as `Permutation` or `Expression` to the appropriate type. This allows stuff like
+this:
+```python
+x = d8.evaluate('r3 f')
+x * 'f' / 'r'  # r2 as an Expression
+
+y = s8.evaluate("(1 2 3)")
+[[2,3]] * y / '(2 3)'   # (1 3 4) as a Permutation, using cycle notation and string notation
+[0, 1, 3, 4, 2, 5, 7, 6] * y / '(2 3)'  # (1 3 5 4)(7 8), using result notation and string notation
+```
+
+Result notation is an alternative way of expressing permutations by indicating where each
+element ends up after the permutation. For example, the permutation `(1 2)` can be expressed
+as `[1, 0, 2, 3]` in result notation for the group s4. Note that result notation is 0-indexed, whereas
+cycle notation is 1-indexed.
 
 ### Running Tests
 
