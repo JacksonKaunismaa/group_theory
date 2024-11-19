@@ -199,3 +199,34 @@ def test_permutation_result_notation_parsing(group_name, tests):
     for result_notation, cycle_notation in tests:
         perm = gr.evaluate(result_notation).simplify()
         assert str(perm) == cycle_notation
+
+
+def test_symbolic_permissive_str_multiply():
+    gr = get_group("dic 8")
+    t1, t2, ans = ("r3 s", "r", "r2 s")
+    t1 = gr.evaluate(t1)  # leave t2 and ans as strings
+    assert t1 * t2 == ans
+
+
+def test_permutation_permissive_str_multiply():
+    gr = get_group("sym 8")
+    t1 = gr.evaluate("(1 2 8 4)(3)(5)(6 7)")
+    t2 = "(1)(2 8 6 7 5 3 4)"
+    ans = "(1 8 2 6 5 3 4)"
+    assert t1 * t2 == ans
+
+
+def test_permutation_permissive_cycle_multiply():
+    gr = get_group("sym 8")
+    t1 = gr.evaluate("(1 2 8 4)(3)(5)(6 7)")
+    t2 = [[0], [1, 7, 5, 6, 4, 2, 3]]
+    ans = [[0, 7, 1, 5, 4, 2, 3]]
+    assert t1 * t2 == ans
+
+
+def test_permutation_permissive_result_multiply():
+    gr = get_group("sym 8")
+    t1 = gr.evaluate("(1 2 8 4)(3)(5)(6 7)")
+    t2 = [[1, 2, 0, 6, 7, 5, 3, 4]]
+    ans = "(1 3)(2 6 8 5)(4 7)"
+    assert t1 * t2 == ans
