@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "group_theory"
-version = "0.1.0"
+version = "0.0.2-alpha"
 description = "A Python package for performing group theory computations."
 authors = [
     { name = "Jackson Kaunismaa", email = "jackkaunis@protonmail.com" }
