@@ -86,3 +86,45 @@ def test_group_orbit(test_group, base_elem, orbit_elems):
     gr = get_group(test_group)
     orbit = gr.orbit(base_elem)
     assert orbit == gr.subgroup(*orbit_elems)
+
+
+@pytest.mark.parametrize(
+    "test_group, subgroup_gen, mult, coset_elems",
+    [
+        (
+            "s 3",
+            ["(1 2)"],
+            "(1 2 3)",
+            [("(1 2 3)", True), ("(1 3 2)", False), ("(1 3)", True)],
+        ),
+        ("d 4", ["r"], "f", [("f", True), ("r f", True), ("r2", False)]),
+        ("d 8", ["r2", "f"], "r", [("r", True), ("r f", True), ("f", False)]),
+    ],
+)
+def test_cosets_multiply(test_group, subgroup_gen, mult, coset_elems):
+    gr = get_group(test_group)
+    subgroup = gr.generate(*subgroup_gen)
+    coset = subgroup * mult
+    for elem, is_in in coset_elems:
+        assert (elem in coset) == is_in
+
+
+@pytest.mark.parametrize(
+    "test_group, subgroup_gen, div, coset_elems",
+    [
+        (
+            "s 3",
+            ["(1 2)"],
+            "(1 2 3)",
+            [("(1 2 3)", False), ("(1 3 2)", True), ("(1 3)", False)],
+        ),
+        ("d 4", ["r"], "f", [("f", True), ("r f", True), ("r2", False)]),
+        ("d 8", ["r2", "f"], "r", [("r", True), ("r f", True), ("f", False)]),
+    ],
+)
+def test_cosets_divide(test_group, subgroup_gen, div, coset_elems):
+    gr = get_group(test_group)
+    subgroup = gr.generate(*subgroup_gen)
+    coset = subgroup / div
+    for elem, is_in in coset_elems:
+        assert (elem in coset) == is_in
