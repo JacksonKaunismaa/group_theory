@@ -5,7 +5,7 @@ from typing import Any, Sequence, Union, List
 from .group_element import GroupElement
 from .groups import Group
 
-# the types that we can try to parse as Permutation in permissive multiplication
+# the types that we can try to parse as Permutation in group.evaluate multiplication
 PermutationFormat = Union[Sequence[int], List[List[int]], str]
 PermissivePerm = Union[PermutationFormat, "Permutation"]
 
@@ -69,7 +69,7 @@ class PermutationGroup(Group["Permutation"]):
         return group
 
 
-class Permutation(GroupElement):
+class Permutation(GroupElement["PermutationGroup"]):
     """
     Represents a permutation in a permutation group.
 
@@ -218,25 +218,13 @@ class Permutation(GroupElement):
             list(reversed([list(reversed(x)) for x in self.cycle])), self.group, True
         ).simplify()
 
-    def permissive(self, other: PermissivePerm) -> "Permutation":
-        """
-        Try to promote expressions to Permutation for permissive multiplication.
-
-        1. If not an Permutation, try converting Permutation
-        2. If this fails, __init__ will throw a TypeError
-        3. Otherwise, return the Permutation
-        """
-        if not isinstance(other, Permutation):
-            other = Permutation(other, self.group)  # type: ignore
-        return other
-
     def __mul__(self, other: PermissivePerm) -> "Permutation":
         # if not isinstance(other, Permutation):
         #     other = Permutation(other, self.group)
         # cycle = self.cycle + other.cycle
         # return Permutation(cycle, self.group, True).simplify()
         try:
-            other = self.permissive(other)
+            other = self.group.evaluate(other)
             cycle = self.cycle + other.cycle
             return Permutation(cycle, self.group, True).simplify()
         except TypeError:
@@ -244,7 +232,7 @@ class Permutation(GroupElement):
 
     def __rmul__(self, other: PermissivePerm):
         try:
-            other = self.permissive(other)
+            other = self.group.evaluate(other)
             cycle = other.cycle + self.cycle
             return Permutation(cycle, self.group, True).simplify()
         except TypeError:
@@ -255,21 +243,21 @@ class Permutation(GroupElement):
 
     def __truediv__(self, other: PermissivePerm) -> "Permutation":
         try:
-            other = self.permissive(other)
+            other = self.group.evaluate(other)
             return self * other.inv()
         except TypeError:
             return NotImplemented
 
     def __rtruediv__(self, other: PermissivePerm) -> "Permutation":
         try:
-            other = self.permissive(other)
+            other = self.group.evaluate(other)
             return other * self.inv()
         except TypeError:
             return NotImplemented
 
     def __eq__(self, other: Any) -> bool:
         try:
-            other = self.permissive(other)
+            other = self.group.evaluate(other)
             return str(self) == str(other)
         except TypeError:
             return NotImplemented

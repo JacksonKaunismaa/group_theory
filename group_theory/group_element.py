@@ -1,10 +1,21 @@
 from abc import ABC, abstractmethod
-from typing import List, Self
+from typing import Generic, List, Self, TYPE_CHECKING, TypeVar
+
+if TYPE_CHECKING:
+    from group_theory.groups import Group
 
 
-class GroupElement(ABC):
+GroupType = TypeVar("GroupType", bound="Group")
+
+
+class GroupElement(ABC, Generic[GroupType]):
     """
     Abstract base class representing a group element in group theory.
+
+    Attributes
+    ----------
+    group: Group
+        The group to which the group element belongs.
 
     Methods
     -------
@@ -23,6 +34,8 @@ class GroupElement(ABC):
     simpler_heuristic(other: Self) -> bool
         Determine if the current element is heuristically simpler than another element.
     """
+
+    group: GroupType
 
     @abstractmethod
     def _parse(self, equation: str, initial: bool) -> List: ...

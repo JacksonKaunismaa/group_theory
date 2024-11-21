@@ -5,7 +5,7 @@ It includes functionality for generating group elements,
 checking subgroup properties, and performing group operations.
 """
 
-from typing import Any, Generic, Iterable, List, TypeVar, Union
+from typing import Any, Generic, Iterable, List, Self, TypeVar, Union
 from tqdm import tqdm
 
 from .group_element import GroupElement
@@ -72,14 +72,14 @@ class Group(set, Generic[T]):
     def permissive(self, other: Any) -> T:
         raise NotImplementedError
 
-    def subgroup(self, *elems: PermissiveT) -> "Group":
+    def subgroup(self, *elems: PermissiveT) -> Self:
         raise NotImplementedError
 
     def same_group_type(self, other: "Group"):
         # check if 2 Groups are subgroups of the same group
         return type(self) is type(other)
 
-    def _identity_group(self) -> "Group":
+    def _identity_group(self) -> Self:
         # helper function return a Group containing only an identity element
         expr = self.identity_expr()
         return self.subgroup(expr)
@@ -97,7 +97,7 @@ class Group(set, Generic[T]):
     def evaluates(self, *equations: PermissiveT) -> List[T]:
         return [self.evaluate(eq) for eq in equations]
 
-    def copy(self):
+    def copy(self) -> Self:
         return self.subgroup(*self)
 
     def iterate(self, track=False):
@@ -108,6 +108,10 @@ class Group(set, Generic[T]):
 
     def __iter__(self):
         return self.iterate()
+
+    def pop(self) -> T:
+        elem = super().pop()
+        return elem
 
     # Properties
 
@@ -128,7 +132,7 @@ class Group(set, Generic[T]):
                     return False
         return True
 
-    def is_normal(self, subgroup: "Group"):
+    def is_normal(self, subgroup: Self):
         if not subgroup.is_subgroup():
             if self.verbose:
                 print("not even a subgroup")
@@ -145,8 +149,9 @@ class Group(set, Generic[T]):
 
     # Operations
 
-    def __mul__(self, other: Union[PermissiveT, "Group"]) -> "Group":
+    def __mul__(self, other: Union[PermissiveT, Self]) -> Self:
         # ie Group * [Expression, Group, str, list[str]] (right cosets)
+        # self * other
         if isinstance(other, GroupElement):
             new_elems = self.subgroup()
             for elem in self:
@@ -158,17 +163,15 @@ class Group(set, Generic[T]):
                 for e2 in other:
                     new_elems.add(e1 * e2)
             return new_elems
-        elif isinstance(other, str):
+        try:
             elem = self.evaluate(other)
             return self * elem
-        # elif isinstance(other, list) and isinstance(other[0], str):
-        #     elems = self.generate(*other)
-        #     return self * elems
-        else:
+        except TypeError:
             return NotImplemented
 
-    def __rmul__(self, other: Union[PermissiveT, "Group"]) -> "Group":
+    def __rmul__(self, other: Union[PermissiveT, Self]) -> Self:
         # ie. Expression * Group (left cosets)
+        # other * self
         if isinstance(other, GroupElement):
             new_elems = self.subgroup()
             for elem in self:
@@ -180,16 +183,13 @@ class Group(set, Generic[T]):
                 for e2 in self:
                     new_elems.add(e1 * e2)
             return new_elems
-        elif isinstance(other, str):
+        try:
             elem = self.evaluate(other)
-            return self * elem
-        # elif isinstance(other, list) and isinstance(other[0], str):
-        #     elems = self.generate(*other)
-        #     return self * elems
-        else:
+            return elem * self
+        except TypeError:
             return NotImplemented
 
-    def divide_groups(self, other: "Group") -> "Group":
+    def divide_groups(self, other: Self) -> Self:
         if not self.same_group_type(other):
             raise ValueError(f"Incompatible group types {self.name} and {other.name}")
 
@@ -208,30 +208,34 @@ class Group(set, Generic[T]):
         quotient.quotient_map = quotient_map
         return quotient
 
-    def inv(self) -> "Group":
+    def inv(self) -> Self:
         return self.subgroup(*(elem.inv() for elem in self))
 
-    def __truediv__(self, other: Union[PermissiveT, "Group"]) -> "Group":
+    def __truediv__(self, other: Union[PermissiveT, Self]) -> Self:
         # self / other
         if isinstance(other, Group):
-            return self.divide_groups(other)
+            return self.divide_groups(other)  # type: ignore
 
         # if its something other than a Group, try promoting to a GroupElement
-        if not isinstance(other, GroupElement):
-            other = self.evaluate(other)
-        return self * other.inv()
+        try:
+            elem = self.evaluate(other)
+            return self * elem.inv()
+        except TypeError:
+            return NotImplemented
 
-    def __rtruediv__(self, other: Union[PermissiveT, "Group"]) -> "Group":
+    def __rtruediv__(self, other: Union[PermissiveT, Self]) -> Self:
         # other / self
         if isinstance(other, Group):
-            return other.divide_groups(self)
+            return other.divide_groups(self)  # type: ignore
 
         # if its something other than a Group, try promoting to a GroupElement
-        if not isinstance(other, GroupElement):
-            other = self.evaluate(other)
-        return other * self.inv()
+        try:
+            elem = self.evaluate(other)
+            return elem * self.inv()
+        except TypeError:
+            return NotImplemented
 
-    def generate(self, *exprs: Union[PermissiveT, "Group"]) -> "Group":
+    def generate(self, *exprs: Union[PermissiveT, Self]) -> Self:
         """Find the subgroup generated by a list of expressions."""
         if len(exprs) == 0:
             return self._identity_group()
@@ -260,7 +264,7 @@ class Group(set, Generic[T]):
                     # yield next  # so that we can do infinite groups as well
         return visited
 
-    def centralizer(self, elems: PermissiveGroup) -> "Group":
+    def centralizer(self, elems: PermissiveGroup) -> Self:
         """Return the centralizer of a set of elements.
 
         Args:
@@ -285,7 +289,7 @@ class Group(set, Generic[T]):
 
     def conjugacy_class(
         self, elem: PermissiveT, paired=False, track=False
-    ) -> Union["Group", dict[T, "Group"]]:
+    ) -> Union[Self, dict[T, Self]]:
         """
         Return the conjugacy class of an element.
 
@@ -314,7 +318,7 @@ class Group(set, Generic[T]):
             return dict(zip(generators, reachable))
         return self.subgroup(*reachable)
 
-    def orbit(self, base_elem: PermissiveT) -> "Group":
+    def orbit(self, base_elem: PermissiveT) -> Self:
         base_elem = self.evaluate(base_elem)
 
         reachable = self.subgroup()
@@ -325,7 +329,7 @@ class Group(set, Generic[T]):
             reachable.add(elem)
         return reachable
 
-    def normalizer(self, elems: PermissiveGroup) -> "Group":
+    def normalizer(self, elems: PermissiveGroup) -> Self:
         # no need to do .evaluate here, since we .generate anyway
         if not isinstance(elems, Group):
             elems = self.generate(elems)
@@ -338,9 +342,9 @@ class Group(set, Generic[T]):
                 commuters.add(candidate)
         return commuters
 
-    def normal_closure(self, elems: PermissiveGroup) -> "Group":
+    def normal_closure(self, elems: PermissiveGroup) -> Self:
         # return smallest normal subgroup that contains `elems`
-        if not isinstance(elems, Iterable):
+        if not isinstance(elems, Group):
             elems = self.generate(elems)
         expanded = self.subgroup()
         for g in self:
@@ -348,17 +352,17 @@ class Group(set, Generic[T]):
         # print(expanded, "expanded")
         return self.generate(expanded)
 
-    def normal_core(self, elems: PermissiveGroup) -> "Group":
+    def normal_core(self, elems: PermissiveGroup) -> Self:
         # return largest normal subgroup contained in `elems`
-        if not isinstance(elems, Iterable):
+        if not isinstance(elems, Group):
             elems = self.generate(elems)
         expanded = self.subgroup(*elems)
         for g in self:
             expanded &= g * elems / g
         return expanded
 
-    def find_cosets(self, coset: "Group", left=True) -> dict[T, "Group"]:
-        cosets = {}
+    def find_cosets(self, coset: Self, left=True) -> dict[T, Self]:
+        cosets: dict[T, Self] = {}
         full_group = self.copy()
         while len(full_group) > 0:
             elem = full_group.pop()

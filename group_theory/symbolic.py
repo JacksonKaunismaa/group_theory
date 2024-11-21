@@ -7,7 +7,7 @@ from .groups import Group
 
 
 IDENTITY_SYMBOLS = ["e", "1"]
-# the types that we can try to parse as Expressions in permissive multiplication
+# the types that we can try to parse as Expressions in group.evaluate multiplication
 ExpressionFormat = Union[str, List["Term"]]
 PermissiveExpr = Union[ExpressionFormat, "Expression"]
 
@@ -218,7 +218,7 @@ class Term:  # (GroupElement):
         return self.exp < other.exp
 
 
-class Expression(GroupElement):
+class Expression(GroupElement["SymbolicGroup"]):
     """
     Represents an element of a symbolic group, as a sequence of terms.
 
@@ -508,22 +508,10 @@ class Expression(GroupElement):
         new_expr = Expression(self.expr + other_expr, self.group)
         return new_expr.combine_like_terms(len(self))
 
-    def permissive(self, other: PermissiveExpr) -> "Expression":
-        """
-        Try to promote expressions to Expression for permissive multiplication.
-
-        1. If not an Expression, try converting Expression
-        2. If this fails, __init__ will throw a TypeError
-        3. Otherwise, return the Expression
-        """
-        if not isinstance(other, Expression):
-            other = Expression(other, self.group)  # type: ignore
-        return other
-
     def __mul__(self, other: PermissiveExpr) -> "Expression":
         """Multiply with full simplification."""
         try:
-            other = self.permissive(other)
+            other = self.group.evaluate(other)
             return self._mul(other).simplify()
         except TypeError:
             return NotImplemented
@@ -531,7 +519,7 @@ class Expression(GroupElement):
     def __rmul__(self, other: PermissiveExpr) -> "Expression":
         """Multiply with full simplification."""
         try:
-            other = self.permissive(other)
+            other = self.group.evaluate(other)
             return other._mul(self).simplify()
         except TypeError:
             return NotImplemented
@@ -551,7 +539,7 @@ class Expression(GroupElement):
     def __truediv__(self, other: PermissiveExpr) -> "Expression":
         """Divide the expression by another expression, with simplification."""
         try:
-            other = self.permissive(other)
+            other = self.group.evaluate(other)
             return self._truediv(other).simplify()
         except TypeError:
             return NotImplemented
@@ -560,7 +548,7 @@ class Expression(GroupElement):
     def __rtruediv__(self, other: PermissiveExpr) -> "Expression":
         """Divide another expression by this expression, with simplification."""
         try:
-            other = self.permissive(other)
+            other = self.group.evaluate(other)
             return other._mul(self.inv()).simplify()
         except TypeError:
             return NotImplemented
@@ -574,7 +562,7 @@ class Expression(GroupElement):
 
     def __eq__(self, other: Any):
         try:
-            other_expr = self.permissive(other)
+            other_expr = self.group.evaluate(other)
             return len(self) == len(other_expr) and all(
                 t1 == t2 for t1, t2 in zip(self.expr, other_expr.expr)
             )
