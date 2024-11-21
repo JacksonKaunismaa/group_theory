@@ -95,18 +95,34 @@ def test_group_orbit(test_group, base_elem, orbit_elems):
             "s 3",
             ["(1 2)"],
             "(1 2 3)",
-            [("(1 2 3)", True), ("(1 3 2)", False), ("(1 3)", True)],
+            [
+                ("(1 2 3)", (True, True)),
+                ("(1 3 2)", (False, False)),
+                ("(1 3)", (True, False)),
+            ],
         ),
-        ("d 4", ["r"], "f", [("f", True), ("r f", True), ("r2", False)]),
-        ("d 8", ["r2", "f"], "r", [("r", True), ("r f", True), ("f", False)]),
+        (
+            "d 4",
+            ["r"],
+            "f",
+            [("f", (True, True)), ("r f", (True, True)), ("r2", (False, False))],
+        ),
+        (
+            "d 8",
+            ["r2", "f"],
+            "r",
+            [("r", (True, True)), ("r f", (True, True)), ("f", (False, False))],
+        ),
     ],
 )
 def test_cosets_multiply(test_group, subgroup_gen, mult, coset_elems):
     gr = get_group(test_group)
     subgroup = gr.generate(*subgroup_gen)
-    coset = subgroup * mult
-    for elem, is_in in coset_elems:
-        assert (elem in coset) == is_in
+    right_coset = subgroup * mult
+    left_coset = mult * subgroup
+    for elem, (is_in_right, is_in_left) in coset_elems:
+        assert (elem in right_coset) == is_in_right
+        assert (elem in left_coset) == is_in_left
 
 
 @pytest.mark.parametrize(
@@ -116,15 +132,32 @@ def test_cosets_multiply(test_group, subgroup_gen, mult, coset_elems):
             "s 3",
             ["(1 2)"],
             "(1 2 3)",
-            [("(1 2 3)", False), ("(1 3 2)", True), ("(1 3)", False)],
+            [
+                ("(1 2 3)", (False, True)),
+                ("(1 3 2)", (True, False)),
+                ("(1 3)", (False, False)),
+                ("(2 3)", (True, True)),
+            ],
         ),
-        ("d 4", ["r"], "f", [("f", True), ("r f", True), ("r2", False)]),
-        ("d 8", ["r2", "f"], "r", [("r", True), ("r f", True), ("f", False)]),
+        (
+            "d 4",
+            ["r"],
+            "f",
+            [("f", (True, True)), ("r f", (True, True)), ("r2", (False, False))],
+        ),
+        (
+            "d 8",
+            ["r2", "f"],
+            "r",
+            [("r", (True, True)), ("r f", (True, True)), ("f", (False, False))],
+        ),
     ],
 )
 def test_cosets_divide(test_group, subgroup_gen, div, coset_elems):
     gr = get_group(test_group)
     subgroup = gr.generate(*subgroup_gen)
-    coset = subgroup / div
-    for elem, is_in in coset_elems:
-        assert (elem in coset) == is_in
+    right_coset = subgroup / div
+    left_coset = div / subgroup
+    for elem, (is_in_right, is_in_left) in coset_elems:
+        assert (elem in right_coset) == is_in_right
+        assert (elem in left_coset) == is_in_left
