@@ -1,4 +1,5 @@
 import itertools
+import re
 from typing import Any, Sequence, Union, List
 
 
@@ -136,8 +137,8 @@ class Permutation(GroupElement["PermutationGroup"]):
         return elem
 
     def _parse(self, equation: str, initial=False) -> List[List[int]]:
-        cycles = equation.split("(")
-        cycles = [x.strip("() ") for x in cycles if x]
+        cycle_regex = re.compile(r"\((.*?)\)")
+        cycles = cycle_regex.findall(equation)
         cycles = [[int(c) - 1 for c in x.split(" ") if c] for x in cycles]
         return cycles
 

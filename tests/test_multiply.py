@@ -204,7 +204,7 @@ def test_permutation_result_notation_parsing(group_name, tests):
 def test_symbolic_permissive_str_multiply():
     gr = get_group("dic 8")
     t1, t2, ans, ans_r = ("r3 s", "r", "r2 s", "r4 s")
-    t1 = gr.evaluate(t1)  # leave t2 and ans as strings
+    t1 = gr.evaluate(t1)
     assert t1 * t2 == ans
     assert t2 * t1 == ans_r
 
@@ -230,7 +230,42 @@ def test_permutation_permissive_cycle_multiply():
 def test_permutation_permissive_result_multiply():
     gr = get_group("sym 8")
     t1 = gr.evaluate("(1 2 8 4)(3)(5)(6 7)")
-    t2 = [[1, 2, 0, 6, 7, 5, 3, 4]]
-    ans, ans_r = "(1 3)(2 6 8 5)(4 7)", "(1 6)(2 3)(4 5 8 7)"
+    t2 = [1, 2, 0, 6, 7, 5, 3, 4]
+    ans, ans_r = "(2 5 8 7 6 4 3)", "(1 3 8 5 4 6 7)"
     assert t1 * t2 == ans
     assert t2 * t1 == ans_r
+
+
+def test_symbolic_permissive_str_divide():
+    gr = get_group("dic 8")
+    t1, t2, ans, ans_r = ("r3 s", "r", "r4 s", "s")
+    t1 = gr.evaluate(t1)  # leave t2 and ans as strings
+    assert t1 / t2 == ans
+    assert t2 / t1 == ans_r
+
+
+def test_permutation_permissive_str_divide():
+    gr = get_group("sym 8")
+    t1 = gr.evaluate("(1 2 8 4)(3)(5)(6 7)")
+    t2 = "(1)(2 8 6 7 5 3 4)"
+    ans, ans_r = "(1 4)(3 5 7 8)", "(1 4)(3 8 7 5)"
+    assert t1 / t2 == ans
+    assert t2 / t1 == ans_r
+
+
+def test_permutation_permissive_cycle_divide():
+    gr = get_group("sym 8")
+    t1 = gr.evaluate("(1 2 8 4)(3)(5)(6 7)")
+    t2 = [[0], [1, 7, 5, 6, 4, 2, 3]]
+    ans, ans_r = [[0, 3], [2, 4, 6, 7]], [[0, 3], [2, 7, 6, 4]]
+    assert t1 / t2 == ans
+    assert t2 / t1 == ans_r
+
+
+def test_permutation_permissive_result_divide():
+    gr = get_group("sym 8")
+    t1 = gr.evaluate("(1 2 8 4)(3)(5)(6 7)")
+    t2 = [1, 2, 0, 6, 7, 5, 3, 4]
+    ans, ans_r = "(1 3)(2 5 8 7 6 4)", "(1 3)(2 4 6 7 8 5)"
+    assert t1 / t2 == ans
+    assert t2 / t1 == ans_r
