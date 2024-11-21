@@ -54,36 +54,40 @@ class Group(set, Generic[T]):
         self.quotient_map = None
 
     def parse(self, equation: Any, initial=False) -> T:
-        # helper function for creating new expressions
+        """Parse an equation if the format can be parsed as an instance of T."""
         raise NotImplementedError
 
     def _generate_all(self):
-        # generate all elements in the group
+        """Generate all elements of the group."""
         raise NotImplementedError
 
-    def _same_group_type(self, other: "Group"):
+    def identity_expr(self) -> T:
+        """Helper function to return the identity element of the group."""
+        raise NotImplementedError
+
+    def generators(self) -> List[T]:
+        """Return the generators of the group."""
+        raise NotImplementedError
+
+    def permissive(self, other: Any) -> T:
+        raise NotImplementedError
+
+    def subgroup(self, *elems: PermissiveT) -> "Group":
+        raise NotImplementedError
+
+    def same_group_type(self, other: "Group"):
         # check if 2 Groups are subgroups of the same group
         return type(self) is type(other)
-
-    def identity_expr(self):
-        # helper function to return an expr, pretty much only used in generate
-        raise NotImplementedError
 
     def _identity_group(self) -> "Group":
         # helper function return a Group containing only an identity element
         expr = self.identity_expr()
         return self.subgroup(expr)
 
-    def generators(self) -> List[T]:
-        raise NotImplementedError
-
     def copy_subgroup_attrs_to(self, subgroup: "Group"):
         """Copy important attrs to another group for subgroup creation"""
         if self.quotient_map is not None:
             subgroup.quotient_map = self.quotient_map.copy()
-
-    def subgroup(self, *elems: PermissiveT) -> "Group":
-        raise NotImplementedError
 
     def evaluate(self, equation: PermissiveT) -> T:
         if isinstance(equation, GroupElement):
@@ -99,7 +103,7 @@ class Group(set, Generic[T]):
     def iterate(self, track=False):
         if not self.has_elems:
             print("Warning: you are trying to iterate over an empty group")
-        iterator = super().__iter__()
+        iterator: Iterable[T] = super().__iter__()
         return iter(tqdm(iterator, disable=not track))
 
     def __iter__(self):
@@ -148,7 +152,7 @@ class Group(set, Generic[T]):
             for elem in self:
                 new_elems.add(elem * other)
             return new_elems
-        elif isinstance(other, Group) and self._same_group_type(other):
+        elif isinstance(other, Group) and self.same_group_type(other):
             new_elems = self.subgroup()
             for e1 in self:
                 for e2 in other:
@@ -157,9 +161,9 @@ class Group(set, Generic[T]):
         elif isinstance(other, str):
             elem = self.evaluate(other)
             return self * elem
-        elif isinstance(other, list) and isinstance(other[0], str):
-            elems = self.generate(*other)
-            return self * elems
+        # elif isinstance(other, list) and isinstance(other[0], str):
+        #     elems = self.generate(*other)
+        #     return self * elems
         else:
             return NotImplemented
 
@@ -170,48 +174,62 @@ class Group(set, Generic[T]):
             for elem in self:
                 new_elems.add(other * elem)
             return new_elems
+        elif isinstance(other, Group) and self.same_group_type(other):
+            new_elems = self.subgroup()
+            for e1 in other:
+                for e2 in self:
+                    new_elems.add(e1 * e2)
+            return new_elems
         elif isinstance(other, str):
             elem = self.evaluate(other)
-            return elem * self
-        elif isinstance(other, list) and isinstance(other[0], str):
-            elems = self.generate(*other)
-            return elems * self
+            return self * elem
+        # elif isinstance(other, list) and isinstance(other[0], str):
+        #     elems = self.generate(*other)
+        #     return self * elems
         else:
             return NotImplemented
 
+    def divide_groups(self, other: "Group") -> "Group":
+        if not self.same_group_type(other):
+            raise ValueError(f"Incompatible group types {self.name} and {other.name}")
+
+        if not self.is_normal(other):
+            raise ValueError("Attempting to quotient by a non-normal subgroup")
+        cosets = self.find_cosets(other)
+        # map each element of a coset to the coset representative
+        quotient_map = {
+            x: representative for representative, coset in cosets.items() for x in coset
+        }
+        reprs = cosets.keys()
+        quotient = self.subgroup(*reprs)
+        for representative in quotient_map.values():
+            # update the group in the map to the new, correct thing
+            representative.group = quotient
+        quotient.quotient_map = quotient_map
+        return quotient
+
+    def inv(self) -> "Group":
+        return self.subgroup(*(elem.inv() for elem in self))
+
     def __truediv__(self, other: Union[PermissiveT, "Group"]) -> "Group":
+        # self / other
         if isinstance(other, Group):
-            if not self._same_group_type(other):
-                raise ValueError(
-                    "Incompatible group types {self.name} and {other.name}"
-                )
-            if not self.is_normal(other):
-                raise ValueError("Attempting to quotient by a non-normal subgroup")
-            cosets = self.find_cosets(other)
-            # print("cosets", cosets)
-            quotient_map = {
-                x: representative
-                for representative, coset in cosets.items()
-                for x in coset
-            }
-            reprs = cosets.keys()
-            quotient = self.subgroup(*reprs)
-            for representative in quotient_map.values():
-                # update the group in the map to the new, correct thing
-                representative.group = quotient
-            quotient.quotient_map = quotient_map
-            return quotient
+            return self.divide_groups(other)
 
         # if its something other than a Group, try promoting to a GroupElement
         if not isinstance(other, GroupElement):
             other = self.evaluate(other)
         return self * other.inv()
 
-    # def __and__(self, other):  # make sure to cast to a Group object
-    #     return self.subgroup(*super().__and__(other))
+    def __rtruediv__(self, other: Union[PermissiveT, "Group"]) -> "Group":
+        # other / self
+        if isinstance(other, Group):
+            return other.divide_groups(self)
 
-    # def __or__(self, other):
-    #     return self.subgroup(*super().__or__(other))
+        # if its something other than a Group, try promoting to a GroupElement
+        if not isinstance(other, GroupElement):
+            other = self.evaluate(other)
+        return other * self.inv()
 
     def generate(self, *exprs: Union[PermissiveT, "Group"]) -> "Group":
         """Find the subgroup generated by a list of expressions."""

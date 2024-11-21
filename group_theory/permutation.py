@@ -44,8 +44,8 @@ class PermutationGroup(Group["Permutation"]):
 
         self.update(new_elems)
 
-    def _same_group_type(self, other: Group):
-        types_match = super()._same_group_type(other)
+    def same_group_type(self, other: Group):
+        types_match = super().same_group_type(other)
         if types_match:
             return self.n == other.n
         return False
