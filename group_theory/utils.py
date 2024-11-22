@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from tqdm import tqdm
 
 if TYPE_CHECKING:
-    from . import groups
+    from group_theory import groups
 
 
 def sliding_window(iterable, n):  # standard itertools recipe

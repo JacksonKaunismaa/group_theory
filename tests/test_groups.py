@@ -161,3 +161,93 @@ def test_cosets_divide(test_group, subgroup_gen, div, coset_elems):
     for elem, (is_in_right, is_in_left) in coset_elems:
         assert (elem in right_coset) == is_in_right
         assert (elem in left_coset) == is_in_left
+
+
+@pytest.mark.parametrize(
+    "test_group, center_elems",
+    [
+        ("s 3", ["e"]),
+        ("d 4", ["e", "r2"]),
+        ("d 8", ["e", "r4"]),
+        ("dic 8", ["e", "r4"]),
+        ("quat 8", ["e", "r4"]),
+    ],
+)
+def test_center(test_group, center_elems):
+    gr = get_group(test_group, generate=True)
+    center = gr.center()
+    expected_center = gr.generate(*center_elems)
+    assert center == expected_center
+
+
+@pytest.mark.parametrize(
+    "test_group, elems, normal_core_elems",
+    [
+        ("s 3", ["(1 2)"], ["e"]),
+        ("d 12", ["r3", "f"], ["r3"]),
+        ("dic 12", ["r4", "s"], ["r2"]),
+        ("dic 12", ["r3", "s"], ["r3"]),
+    ],
+)
+def test_normal_core(test_group, elems, normal_core_elems):
+    gr = get_group(test_group, generate=True)
+    generated = gr.generate(*elems)
+    normal_core = gr.normal_core(generated)
+    expected_normal_core = gr.generate(*normal_core_elems)
+    assert normal_core == expected_normal_core
+    assert gr.is_normal(expected_normal_core)
+    assert gr.is_normal(normal_core)
+    assert normal_core <= generated
+
+
+@pytest.mark.parametrize(
+    "test_group, elems, normal_closure_elems",
+    [
+        ("s 3", ["(1 2)"], ["(1 2)", "(2 3)"]),
+        ("d 12", ["r4", "f"], ["r2", "f"]),
+        ("quat 16", ["r12", "s"], ["r2", "s"]),
+    ],
+)
+def test_normal_closure(test_group, elems, normal_closure_elems):
+    gr = get_group(test_group, generate=True)
+    generated = gr.generate(*elems)
+    normal_closure = gr.normal_closure(generated)
+    expected_normal_closure = gr.generate(*normal_closure_elems)
+    assert normal_closure == expected_normal_closure
+    assert gr.is_normal(normal_closure)
+    assert gr.is_normal(expected_normal_closure)
+    assert generated <= normal_closure
+
+
+@pytest.mark.parametrize(
+    "test_group, elems, normalizer_elems",
+    [
+        ("s 4", ["(1 2)", "(3 4)"], ["(1 2)", "(1 3 2 4)"]),
+        ("d 8", ["r4", "f"], ["r2", "f"]),
+        ("dic 12", ["r2 s"], ["r2 s", "r3"]),
+    ],
+)
+def test_normalizer(test_group, elems, normalizer_elems):
+    gr = get_group(test_group, generate=True)
+    generated = gr.generate(*elems)
+    normalizer = gr.normalizer(generated)
+    expected_normalizer = gr.generate(*normalizer_elems)
+    assert normalizer.is_normal(generated)
+    assert normalizer == expected_normalizer
+
+
+@pytest.mark.parametrize(
+    "test_group, commutator_core",
+    [
+        ("s 4", ["(1 3 2)", "(1 2)(3 4)"]),
+        ("d 12", ["r2"]),
+        ("sa 16", ["r8"]),
+    ],
+)
+def test_commutator(test_group, commutator_core):
+    gr = get_group(test_group, generate=True)
+    commutator = gr.commutator()
+    expected_commutator = gr.generate(*commutator_core)
+    assert commutator == expected_commutator
+    expected_closure = gr.normal_closure(expected_commutator)
+    assert commutator == expected_closure

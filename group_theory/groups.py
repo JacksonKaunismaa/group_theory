@@ -8,7 +8,7 @@ checking subgroup properties, and performing group operations.
 from typing import Any, Generic, Iterable, List, Self, TypeVar, Union
 from tqdm import tqdm
 
-from .group_element import GroupElement
+from group_theory.group_element import GroupElement
 
 # must be subclass of GroupElement
 T = TypeVar("T", bound=GroupElement)
@@ -242,13 +242,16 @@ class Group(set, Generic[T]):
 
         flat_exprs = set()
         for expr in exprs:
-            if isinstance(expr, Group):
+            # can't put Group here, because of autoreload weirdness
+            # if isinstance(expr, Group):
+            if isinstance(expr, type(self)):
                 flat_exprs |= expr
             elif not isinstance(expr, GroupElement):
                 flat_exprs.add(self.evaluate(expr))
-            else:
-                raise ValueError(f"Unknown type '{type(expr)}' in exprs list")
+            elif isinstance(expr, GroupElement):
+                flat_exprs.add(expr)
 
+        # print(flat_exprs)
         frontier = self.subgroup(*flat_exprs)
         visited = self.subgroup()
         # print("frontier", frontier)
@@ -330,9 +333,9 @@ class Group(set, Generic[T]):
         return reachable
 
     def normalizer(self, elems: PermissiveGroup) -> Self:
-        # no need to do .evaluate here, since we .generate anyway
+        """The union of all cosets that are normal w.r.t `elems`"""
         if not isinstance(elems, Group):
-            elems = self.generate(elems)
+            elems = self.subgroup(*elems)
         commuters = self.subgroup()
         for candidate in self:
             for elem in elems:
@@ -343,22 +346,21 @@ class Group(set, Generic[T]):
         return commuters
 
     def normal_closure(self, elems: PermissiveGroup) -> Self:
-        # return smallest normal subgroup that contains `elems`
+        """Smallest normal subgroup containing `elems`"""
         if not isinstance(elems, Group):
-            elems = self.generate(elems)
+            elems = self.subgroup(*elems)
         expanded = self.subgroup()
         for g in self:
-            expanded |= g * elems / g
-        # print(expanded, "expanded")
-        return self.generate(expanded)
+            expanded |= g.inv() * elems * g
+        return self.generate(*expanded)
 
     def normal_core(self, elems: PermissiveGroup) -> Self:
-        # return largest normal subgroup contained in `elems`
+        """Largest normal subgroup contained in `elems`"""
         if not isinstance(elems, Group):
-            elems = self.generate(elems)
+            elems = self.subgroup(*elems)
         expanded = self.subgroup(*elems)
         for g in self:
-            expanded &= g * elems / g
+            expanded &= g.inv() * elems * g
         return expanded
 
     def find_cosets(self, coset: Self, left=True) -> dict[T, Self]:
@@ -385,4 +387,4 @@ class Group(set, Generic[T]):
         for x in self.iterate(track=track):
             for y in self:
                 elems.add(x * y / x / y)
-        return self.generate(elems)
+        return self.generate(*elems)

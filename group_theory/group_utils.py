@@ -2,11 +2,11 @@ import re
 import math
 from typing import TYPE_CHECKING, Optional
 
-from . import permutation
-from . import symbolic
+from group_theory import permutation
+from group_theory import symbolic
 
 if TYPE_CHECKING:
-    from .groups import Group
+    from group_theory.groups import Group
 
 
 def _default_groups(group_name: str, n: int, generate: Optional[bool]) -> "Group":

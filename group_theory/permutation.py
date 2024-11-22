@@ -3,8 +3,8 @@ import re
 from typing import Any, Sequence, Union, List
 
 
-from .group_element import GroupElement
-from .groups import Group
+from group_theory.group_element import GroupElement
+from group_theory.groups import Group
 
 # the types that we can try to parse as Permutation in group.evaluate multiplication
 PermutationFormat = Union[Sequence[int], List[List[int]], str]
@@ -95,12 +95,13 @@ class Permutation(GroupElement["PermutationGroup"]):
             self.parse_result_notation(notation)  # type: ignore
         elif notation and isinstance(notation[0], list):
             self.cycle: List[List[int]] = notation
-            if not is_valid:
-                self.validate()
         elif not notation:
             self.cycle = []
         else:
             raise TypeError(f"Invalid notation {type(notation)}")
+
+        if not is_valid:
+            self.validate()
 
     def validate(self):
         for term in self.cycle:

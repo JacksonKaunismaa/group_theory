@@ -1,9 +1,9 @@
 from collections import defaultdict
 from typing import Any, Union, List, Optional
 
-from . import utils
-from .group_element import GroupElement
-from .groups import Group
+from group_theory import utils
+from group_theory.group_element import GroupElement
+from group_theory.groups import Group
 
 
 IDENTITY_SYMBOLS = ["e", "1"]
